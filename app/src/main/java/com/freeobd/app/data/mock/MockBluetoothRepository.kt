@@ -20,9 +20,8 @@ class MockBluetoothRepository : BluetoothRepository {
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     private val _scanResults = MutableSharedFlow<BluetoothDeviceInfo>(
-        replay = 0,
-        extraBufferCapacity = 16,
-        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+        replay = 8,
+        extraBufferCapacity = 8
     )
     override val scanResults: Flow<BluetoothDeviceInfo> = _scanResults.asSharedFlow()
 

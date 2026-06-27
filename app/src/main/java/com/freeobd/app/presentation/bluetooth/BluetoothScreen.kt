@@ -76,9 +76,9 @@ fun BluetoothScreen(
         }
     }
 
-    /** Start scan after checking permissions. */
+    /** Start scan after checking permissions (skipped in demo mode). */
     fun requestPermissionsAndScan() {
-        if (hasBluetoothPermissions()) {
+        if (isDemoMode || hasBluetoothPermissions()) {
             viewModel.onEvent(BluetoothEvent.StartScan)
         } else {
             permissionLauncher.launch(bluetoothPermissions)
