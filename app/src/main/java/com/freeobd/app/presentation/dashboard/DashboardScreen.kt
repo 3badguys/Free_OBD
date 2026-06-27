@@ -2,6 +2,8 @@ package com.freeobd.app.presentation.dashboard
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -64,7 +66,8 @@ fun DashboardScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -211,25 +214,29 @@ private fun PidPickerSheet(
     onDismiss: () -> Unit
 ) {
     val availablePids = listOf(
-        0x04 to "Engine Load",
-        0x05 to "Coolant Temp",
-        0x0A to "Fuel Pressure",
-        0x0B to "Intake Pressure",
         0x0C to "Engine RPM",
         0x0D to "Vehicle Speed",
-        0x0F to "Intake Air Temp",
-        0x10 to "MAF Rate",
-        0x11 to "Throttle Pos",
-        0x1F to "Run Time",
-        0x21 to "MIL Distance",
+        0x05 to "Coolant Temp",
+        0x11 to "Throttle Position",
+        0x04 to "Engine Load",
         0x2F to "Fuel Level",
-        0x33 to "Baro Pressure",
+        0x10 to "MAF Rate",
+        0x0F to "Intake Air Temp",
         0x46 to "Ambient Temp",
-        0x5C to "Oil Temp"
+        0x5C to "Oil Temp",
+        0x0A to "Fuel Pressure",
+        0x0B to "Intake Pressure",
+        0x33 to "Baro Pressure",
+        0x1F to "Run Time",
+        0x21 to "MIL Distance"
     )
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
             Text(
                 "Select Gauges",
                 style = MaterialTheme.typography.titleMedium,
@@ -239,25 +246,39 @@ private fun PidPickerSheet(
 
             availablePids.forEach { (pidId, name) ->
                 val isSelected = pidId in selectedPids
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (isSelected) onRemovePid(pidId) else onAddPid(pidId)
+                    },
+                    color = if (isSelected) Primary.copy(alpha = 0.08f) else Surface
                 ) {
-                    Text(
-                        text = "${pidId.toHex2()} — $name",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = OnBackground,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = isSelected,
-                        onCheckedChange = { checked ->
-                            if (checked) onAddPid(pidId) else onRemovePid(pidId)
-                        },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Primary)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = OnBackground
+                            )
+                            Text(
+                                text = "PID 0x${pidId.toHex2()}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = OnSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isSelected,
+                            onCheckedChange = { checked ->
+                                if (checked) onAddPid(pidId) else onRemovePid(pidId)
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Primary)
+                        )
+                    }
                 }
             }
 

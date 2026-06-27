@@ -57,7 +57,7 @@ class MockOBDRepository : OBDRepository {
                     intakeTemp = (28.0 - (runTime / 300.0) * 8.0).coerceAtLeast(20.0)
                 }
 
-                // Idle variation
+                // Idle variation — subtle fluctuations
                 baseRpm = (800 + random.nextDouble(-30.0, 30.0)).coerceIn(650.0, 900.0)
                 engineLoad = (22 + random.nextDouble(-3.0, 5.0)).coerceIn(15.0, 35.0)
                 throttlePos = (15 + random.nextDouble(-1.0, 2.0)).coerceIn(12.0, 18.0)
@@ -65,6 +65,11 @@ class MockOBDRepository : OBDRepository {
                 fuelPressure = (350 + random.nextDouble(-10.0, 15.0)).coerceIn(300.0, 400.0)
                 intakePressure = (35 + random.nextDouble(-2.0, 3.0)).coerceIn(28.0, 42.0)
                 fuelLevel = (65 - runTime * 0.001).coerceAtLeast(63.5)
+                // Simulate occasional driving: speed ramps up after brief warmup
+                baseSpeed = if (runTime > 3) {
+                    (40 + random.nextDouble(-5.0, 8.0) + 20 * kotlin.math.sin(runTime / 10.0))
+                        .coerceIn(0.0, 80.0)
+                } else 0.0
 
                 runTime += intervalMs / 1000.0
 
@@ -197,7 +202,7 @@ class MockOBDRepository : OBDRepository {
             0x0C -> OBDData.Numeric(baseRpm, "rpm", pidId)
             0x10 -> OBDData.Numeric(mafRate, "g/s", pidId)
             0x1F -> OBDData.Numeric(runTime, "s", pidId)
-            0x21 -> OBDData.Numeric(0.0, "km", pidId) // No MIL distance
+            0x21 -> OBDData.Numeric(152.3 + random.nextDouble(-1.0, 1.0), "km", pidId)
             // Default for unsupported PIDs
             else -> OBDData.Unavailable
         }

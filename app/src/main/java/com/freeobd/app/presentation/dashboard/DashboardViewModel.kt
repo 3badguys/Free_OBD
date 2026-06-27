@@ -46,6 +46,11 @@ class DashboardViewModel(
     // Latest known values (preserved across start/stop)
     private val lastValues = mutableMapOf<Int, OBDData>()
 
+    init {
+        // Auto-start polling when the dashboard is first created
+        startPolling()
+    }
+
     fun onEvent(event: DashboardEvent) {
         when (event) {
             DashboardEvent.StartPolling -> startPolling()
@@ -86,16 +91,14 @@ class DashboardViewModel(
             readLiveDataUseCase(pids, pollingIntervalMs)
         }
 
-        pollingJob = viewModelScope.launch {
-            dataFlow.collectSafely(viewModelScope) { pidValues ->
-                lastValues.putAll(pidValues)
-                _uiState.value = DashboardUiState.Active(
-                    pidValues = lastValues.toMap(),
-                    isPolling = true,
-                    selectedPids = _selectedPids.value,
-                    pollingIntervalMs = pollingIntervalMs
-                )
-            }
+        pollingJob = dataFlow.collectSafely(viewModelScope) { pidValues ->
+            lastValues.putAll(pidValues)
+            _uiState.value = DashboardUiState.Active(
+                pidValues = lastValues.toMap(),
+                isPolling = true,
+                selectedPids = _selectedPids.value,
+                pollingIntervalMs = pollingIntervalMs
+            )
         }
     }
 
@@ -111,10 +114,19 @@ class DashboardViewModel(
 
     private fun addPid(pidId: Int) {
         _selectedPids.update { it + pidId }
+        restartIfPolling()
     }
 
     private fun removePid(pidId: Int) {
         _selectedPids.update { it - pidId }
+        restartIfPolling()
+    }
+
+    private fun restartIfPolling() {
+        if (pollingJob?.isActive == true) {
+            stopPolling()
+            startPolling()
+        }
     }
 
     override fun onCleared() {
