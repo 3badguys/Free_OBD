@@ -2,9 +2,13 @@ package com.freeobd.app.presentation.bluetooth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.mock.DemoModeState
+import com.freeobd.app.data.mock.MockBluetoothRepository
+import com.freeobd.app.data.mock.MockOBDRepository
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.ConnectionState
 import com.freeobd.app.domain.repository.BluetoothRepository
+import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ConnectBluetoothUseCase
 import com.freeobd.app.domain.usecase.DiscoverPIDsUseCase
 import com.freeobd.app.utils.collectSafely
@@ -14,36 +18,43 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the Bluetooth connection screen.
  *
- * Manages:
- * - Device scanning lifecycle
- * - Connection flow (device → ELM327 init → PID discovery)
- * - Protocol and ECU address configuration
- * - UI state updates based on Bluetooth connection state
+ * Supports two modes:
+ * - **Live mode**: uses real Bluetooth and OBD repositories
+ * - **Demo mode**: uses mock repositories generating simulated vehicle data
  */
 class BluetoothViewModel(
     private val connectBluetoothUseCase: ConnectBluetoothUseCase,
     private val bluetoothRepository: BluetoothRepository,
-    private val discoverPIDsUseCase: DiscoverPIDsUseCase
+    private val discoverPIDsUseCase: DiscoverPIDsUseCase,
+    private val obdRepository: OBDRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<BluetoothUiState>(BluetoothUiState.Idle)
     val uiState: StateFlow<BluetoothUiState> = _uiState.asStateFlow()
 
-    // Current configuration
+    // Demo mode — exposed as StateFlow for Compose reactivity
+    private val _isDemoMode = MutableStateFlow(false)
+    val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
+
+    private val mockBtRepo by lazy { MockBluetoothRepository() }
+    private val mockObdRepo by lazy { MockOBDRepository() }
+
+    /** Active repositories — switches between real and mock based on demo mode. */
+    private val activeBtRepo: BluetoothRepository
+        get() = if (_isDemoMode.value) mockBtRepo else bluetoothRepository
+
+    private val activeObdRepo: OBDRepository
+        get() = if (_isDemoMode.value) mockObdRepo else obdRepository
+
+    // Configuration
     private var selectedProtocol: String = "ATSP0"
     private var ecuAddress: String? = null
-
-    // Accumulated scan results
     private val discoveredDevices = mutableSetOf<BluetoothDeviceInfo>()
 
     init {
-        // Observe connection state changes
         observeConnectionState()
     }
 
-    /**
-     * Handle user actions dispatched from the UI.
-     */
     fun onEvent(event: BluetoothEvent) {
         when (event) {
             BluetoothEvent.StartScan -> startScan()
@@ -51,13 +62,26 @@ class BluetoothViewModel(
             is BluetoothEvent.Connect -> connect(event.device, event.protocol, event.ecuAddress)
             BluetoothEvent.Disconnect -> disconnect()
             BluetoothEvent.DismissError -> dismissError()
-            is BluetoothEvent.SelectProtocol -> {
-                selectedProtocol = event.protocol
-            }
-            is BluetoothEvent.SetEcuAddress -> {
-                ecuAddress = event.address.ifBlank { null }
-            }
+            is BluetoothEvent.SelectProtocol -> { selectedProtocol = event.protocol }
+            is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address.ifBlank { null } }
+            is BluetoothEvent.ToggleDemoMode -> toggleDemoMode()
         }
+    }
+
+    private fun toggleDemoMode() {
+        _isDemoMode.value = !_isDemoMode.value
+
+        if (_isDemoMode.value) {
+            DemoModeState.enableDemoMode()
+            viewModelScope.launch { bluetoothRepository.stopScan() }
+        } else {
+            DemoModeState.disableDemoMode()
+            viewModelScope.launch { mockBtRepo.stopScan() }
+        }
+
+        discoveredDevices.clear()
+        _uiState.value = BluetoothUiState.Idle
+        observeConnectionState()
     }
 
     private fun startScan() {
@@ -65,15 +89,14 @@ class BluetoothViewModel(
             discoveredDevices.clear()
             _uiState.value = BluetoothUiState.Scanning
 
-            bluetoothRepository.startScan().onFailure { error ->
+            activeBtRepo.startScan().onFailure { error ->
                 _uiState.value = BluetoothUiState.Error(
                     message = error.message ?: "Failed to start scan",
                     isRecoverable = true
                 )
             }
 
-            // Collect scan results
-            bluetoothRepository.scanResults.collectSafely(viewModelScope) { device ->
+            activeBtRepo.scanResults.collectSafely(viewModelScope) { device ->
                 discoveredDevices.add(device)
                 _uiState.value = BluetoothUiState.DevicesFound(
                     devices = discoveredDevices.toList().sortedByDescending { it.rssi ?: -100 },
@@ -85,7 +108,7 @@ class BluetoothViewModel(
 
     private fun stopScan() {
         viewModelScope.launch {
-            bluetoothRepository.stopScan()
+            activeBtRepo.stopScan()
             _uiState.value = BluetoothUiState.DevicesFound(
                 devices = discoveredDevices.toList().sortedByDescending { it.rssi ?: -100 },
                 isScanning = false
@@ -97,35 +120,67 @@ class BluetoothViewModel(
         viewModelScope.launch {
             _uiState.value = BluetoothUiState.Connecting(device)
 
-            connectBluetoothUseCase(device, protocol, ecuAddress).fold(
-                onSuccess = {
-                    _uiState.value = BluetoothUiState.Connected(
-                        deviceName = device.name ?: device.address,
-                        deviceAddress = device.address,
-                        protocol = protocol
-                    )
-
-                    // Automatically discover supported PIDs after connection
-                    launch {
-                        discoverPIDsUseCase().onFailure { error ->
-                            android.util.Log.w("BluetoothVM",
-                                "PID discovery failed: ${error.message}")
-                        }
+            if (_isDemoMode.value) {
+                // Demo mode: connect via mock, then init mock OBD
+                activeBtRepo.connect(device, protocol, ecuAddress).fold(
+                    onSuccess = {
+                        activeObdRepo.initELM327(protocol, ecuAddress).fold(
+                            onSuccess = {
+                                _uiState.value = BluetoothUiState.Connected(
+                                    deviceName = device.name ?: device.address,
+                                    deviceAddress = device.address,
+                                    protocol = protocol
+                                )
+                                launch {
+                                    activeObdRepo.discoverSupportedPIDs().onFailure { /* ignore */ }
+                                }
+                            },
+                            onFailure = { error ->
+                                activeBtRepo.disconnect()
+                                _uiState.value = BluetoothUiState.Error(
+                                    message = "ELM327 init failed: ${error.message}",
+                                    isRecoverable = true
+                                )
+                            }
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = BluetoothUiState.Error(
+                            message = error.message ?: "Connection failed",
+                            isRecoverable = true
+                        )
                     }
-                },
-                onFailure = { error ->
-                    _uiState.value = BluetoothUiState.Error(
-                        message = error.message ?: "Connection failed",
-                        isRecoverable = true
-                    )
-                }
-            )
+                )
+            } else {
+                // Live mode: use the ConnectBluetoothUseCase
+                connectBluetoothUseCase(device, protocol, ecuAddress).fold(
+                    onSuccess = {
+                        _uiState.value = BluetoothUiState.Connected(
+                            deviceName = device.name ?: device.address,
+                            deviceAddress = device.address,
+                            protocol = protocol
+                        )
+                        launch {
+                            discoverPIDsUseCase().onFailure { error ->
+                                android.util.Log.w("BluetoothVM",
+                                    "PID discovery failed: ${error.message}")
+                            }
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = BluetoothUiState.Error(
+                            message = error.message ?: "Connection failed",
+                            isRecoverable = true
+                        )
+                    }
+                )
+            }
         }
     }
 
     private fun disconnect() {
         viewModelScope.launch {
-            bluetoothRepository.disconnect()
+            activeBtRepo.disconnect()
             _uiState.value = BluetoothUiState.Idle
         }
     }
@@ -134,27 +189,19 @@ class BluetoothViewModel(
         _uiState.value = BluetoothUiState.Idle
     }
 
-    /**
-     * Observe the underlying Bluetooth connection state and update UI accordingly.
-     */
     private fun observeConnectionState() {
-        bluetoothRepository.connectionState.collectSafely(viewModelScope) { state ->
+        activeBtRepo.connectionState.collectSafely(viewModelScope) { state ->
             when (state) {
-                ConnectionState.DISCONNECTED,
-                ConnectionState.DISCONNECTING ->
+                ConnectionState.DISCONNECTED, ConnectionState.DISCONNECTING ->
                     if (_uiState.value !is BluetoothUiState.Error) {
                         _uiState.value = BluetoothUiState.Idle
                     }
-
                 ConnectionState.RECONNECTING ->
                     _uiState.value = BluetoothUiState.Error(
                         message = "Connection lost. Tap to reconnect.",
                         isRecoverable = true
                     )
-
-                else -> {
-                    // Other states are handled by the connect() flow
-                }
+                else -> { /* handled by connect() flow */ }
             }
         }
     }
@@ -165,4 +212,7 @@ class BluetoothViewModel(
             bluetoothRepository.stopScan()
         }
     }
+
+    /** Get the active OBD repository (mock or real) for downstream screens. */
+    fun getActiveObdRepository(): OBDRepository = activeObdRepo
 }

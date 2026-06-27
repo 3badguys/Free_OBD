@@ -45,6 +45,7 @@ fun BluetoothScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
 
     // Permission launcher
     val bluetoothPermissions = remember {
@@ -93,12 +94,49 @@ fun BluetoothScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Free OBD") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Free OBD")
+                        if (isDemoMode) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = StatusYellow.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    "DEMO",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StatusYellow
+                                )
+                            }
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Surface,
                     titleContentColor = Primary
                 ),
                 actions = {
+                    // Demo mode toggle
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Demo",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDemoMode) StatusYellow else OnSurfaceVariant
+                        )
+                        Switch(
+                            checked = isDemoMode,
+                            onCheckedChange = {
+                                viewModel.onEvent(BluetoothEvent.ToggleDemoMode)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = StatusYellow,
+                                checkedThumbColor = Primary
+                            ),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
                     // Connected state actions
                     if (uiState is BluetoothUiState.Connected) {
                         IconButton(onClick = onNavigateToDashboard) {
@@ -136,7 +174,8 @@ fun BluetoothScreen(
             when (val state = uiState) {
                 BluetoothUiState.Idle -> {
                     IdleContent(
-                        onStartScan = { requestPermissionsAndScan() }
+                        onStartScan = { requestPermissionsAndScan() },
+                        isDemoMode = isDemoMode
                     )
                 }
 
@@ -203,24 +242,25 @@ fun BluetoothScreen(
 // ── Content Composables ────────────────────────────────────
 
 @Composable
-private fun IdleContent(onStartScan: () -> Unit) {
+private fun IdleContent(onStartScan: () -> Unit, isDemoMode: Boolean = false) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.Bluetooth,
+                if (isDemoMode) Icons.Default.Android else Icons.Default.Bluetooth,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
-                tint = OnSurfaceVariant
+                tint = if (isDemoMode) StatusYellow else OnSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Connect your OBD-II adapter",
+                if (isDemoMode) "Demo Mode Active" else "Connect your OBD-II adapter",
                 style = MaterialTheme.typography.headlineSmall,
                 color = OnBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Tap scan to find nearby Bluetooth adapters",
+                if (isDemoMode) "Simulated OBD data — no hardware needed"
+                else "Tap scan to find nearby Bluetooth adapters",
                 style = MaterialTheme.typography.bodyMedium,
                 color = OnSurface
             )

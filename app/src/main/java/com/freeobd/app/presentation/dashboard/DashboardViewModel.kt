@@ -2,6 +2,7 @@ package com.freeobd.app.presentation.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.DiscoverPIDsUseCase
@@ -23,6 +24,10 @@ class DashboardViewModel(
     private val discoverPIDsUseCase: DiscoverPIDsUseCase,
     private val obdRepository: OBDRepository
 ) : ViewModel() {
+
+    /** Resolves to mock repo in demo mode, real repo otherwise. */
+    private val activeRepo: OBDRepository
+        get() = DemoModeState.current ?: obdRepository
 
     private val _uiState = MutableStateFlow<DashboardUiState>(
         DashboardUiState.Loading
@@ -65,7 +70,6 @@ class DashboardViewModel(
             return
         }
 
-        // Reset last values for a fresh start
         lastValues.clear()
 
         _uiState.value = DashboardUiState.Active(
@@ -75,17 +79,23 @@ class DashboardViewModel(
             pollingIntervalMs = pollingIntervalMs
         )
 
-        pollingJob = viewModelScope.launch {
+        // Use mock repo in demo mode, use case otherwise
+        val dataFlow = if (DemoModeState.isDemoMode) {
+            activeRepo.pollPIDs(pids, pollingIntervalMs)
+        } else {
             readLiveDataUseCase(pids, pollingIntervalMs)
-                .collectSafely(viewModelScope) { pidValues ->
-                    lastValues.putAll(pidValues)
-                    _uiState.value = DashboardUiState.Active(
-                        pidValues = lastValues.toMap(),
-                        isPolling = true,
-                        selectedPids = _selectedPids.value,
-                        pollingIntervalMs = pollingIntervalMs
-                    )
-                }
+        }
+
+        pollingJob = viewModelScope.launch {
+            dataFlow.collectSafely(viewModelScope) { pidValues ->
+                lastValues.putAll(pidValues)
+                _uiState.value = DashboardUiState.Active(
+                    pidValues = lastValues.toMap(),
+                    isPolling = true,
+                    selectedPids = _selectedPids.value,
+                    pollingIntervalMs = pollingIntervalMs
+                )
+            }
         }
     }
 

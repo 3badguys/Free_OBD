@@ -2,7 +2,9 @@ package com.freeobd.app.presentation.dtc
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.model.DTC
+import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ReadDTCUseCase
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -11,8 +13,11 @@ import kotlinx.coroutines.launch
  * ViewModel for the Diagnostic Trouble Codes screen.
  */
 class DtcViewModel(
-    private val readDTCUseCase: ReadDTCUseCase
+    private val readDTCUseCase: ReadDTCUseCase,
+    private val obdRepository: OBDRepository
 ) : ViewModel() {
+
+    private val activeRepo get() = DemoModeState.current ?: obdRepository
 
     private val _uiState = MutableStateFlow<DtcUiState>(DtcUiState.Loading)
     val uiState: StateFlow<DtcUiState> = _uiState.asStateFlow()
@@ -40,15 +45,18 @@ class DtcViewModel(
         viewModelScope.launch {
             _uiState.value = DtcUiState.Loading
 
-            val aggregate = readDTCUseCase()
+            val repo = activeRepo
+            val stored = repo.readStoredDTCs().getOrDefault(emptyList())
+            val pending = repo.readPendingDTCs().getOrDefault(emptyList())
+            val permanent = repo.readPermanentDTCs().getOrDefault(emptyList())
 
-            if (aggregate.isEmpty) {
+            if (stored.isEmpty() && pending.isEmpty() && permanent.isEmpty()) {
                 _uiState.value = DtcUiState.NoCodes
             } else {
                 _uiState.value = DtcUiState.Loaded(
-                    storedDTCs = aggregate.stored,
-                    pendingDTCs = aggregate.pending,
-                    permanentDTCs = aggregate.permanent,
+                    storedDTCs = stored,
+                    pendingDTCs = pending,
+                    permanentDTCs = permanent,
                     selectedTab = DtcTab.STORED
                 )
             }
@@ -59,7 +67,7 @@ class DtcViewModel(
         viewModelScope.launch {
             _uiState.value = DtcUiState.Loading
 
-            readDTCUseCase.clear().fold(
+            activeRepo.clearDTCs().fold(
                 onSuccess = {
                     _uiState.value = DtcUiState.Cleared
                 },

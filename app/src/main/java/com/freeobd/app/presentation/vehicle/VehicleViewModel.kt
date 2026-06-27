@@ -2,6 +2,7 @@ package com.freeobd.app.presentation.vehicle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ReadVehicleInfoUseCase
 import kotlinx.coroutines.flow.*
@@ -11,6 +12,8 @@ class VehicleViewModel(
     private val readVehicleInfoUseCase: ReadVehicleInfoUseCase,
     private val obdRepository: OBDRepository
 ) : ViewModel() {
+
+    private val activeRepo get() = DemoModeState.current ?: obdRepository
 
     private val _uiState = MutableStateFlow<VehicleUiState>(VehicleUiState.Loading)
     val uiState: StateFlow<VehicleUiState> = _uiState.asStateFlow()
@@ -25,7 +28,7 @@ class VehicleViewModel(
         viewModelScope.launch {
             _uiState.value = VehicleUiState.Loading
 
-            readVehicleInfoUseCase().fold(
+            activeRepo.readVehicleInfo().fold(
                 onSuccess = { info ->
                     _uiState.value = VehicleUiState.Success(info)
                 },

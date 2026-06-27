@@ -1,6 +1,7 @@
 package com.freeobd.app.di
 
 import com.freeobd.app.data.local.AppDatabase
+import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.data.repository.BluetoothRepositoryImpl
 import com.freeobd.app.data.repository.OBDRepositoryImpl
 import com.freeobd.app.domain.repository.BluetoothRepository
@@ -46,10 +47,12 @@ val appModule = module {
 
     // OBDRepository — gets transport from BluetoothRepository at runtime
     single<OBDRepository> {
-        OBDRepositoryImpl(
+        val repo = OBDRepositoryImpl(
             bluetoothRepository = get(),
             database = get()
         )
+        DemoModeState.realObdRepository = repo
+        repo
     }
 
     // ── Use Cases ──────────────────────────────────────────
@@ -62,8 +65,8 @@ val appModule = module {
 
     // ── ViewModels ─────────────────────────────────────────
 
-    viewModel { BluetoothViewModel(get(), get(), get()) }
+    viewModel { BluetoothViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get(), get()) }
-    viewModel { DtcViewModel(get()) }
+    viewModel { DtcViewModel(get(), get()) }
     viewModel { VehicleViewModel(get(), get()) }
 }

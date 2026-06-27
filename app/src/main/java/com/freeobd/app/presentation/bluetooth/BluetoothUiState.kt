@@ -70,4 +70,7 @@ sealed interface BluetoothEvent {
 
     /** Set a specific ECU CAN address. */
     data class SetEcuAddress(val address: String) : BluetoothEvent
+
+    /** Toggle demo mode on/off. */
+    data object ToggleDemoMode : BluetoothEvent
 }
