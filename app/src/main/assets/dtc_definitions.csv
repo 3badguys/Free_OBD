@@ -1,0 +1,128 @@
+code,description,category,system,severity
+P0100,Mass or Volume Air Flow Circuit Malfunction,P,Fuel/Air,Medium
+P0101,Mass or Volume Air Flow Circuit Range/Performance,P,Fuel/Air,Medium
+P0102,Mass or Volume Air Flow Circuit Low Input,P,Fuel/Air,Medium
+P0103,Mass or Volume Air Flow Circuit High Input,P,Fuel/Air,Medium
+P0105,Manifold Absolute Pressure/Barometric Pressure Circuit Malfunction,P,Fuel/Air,Medium
+P0106,Manifold Absolute Pressure/Barometric Pressure Circuit Range/Performance,P,Fuel/Air,Low
+P0107,Manifold Absolute Pressure/Barometric Pressure Circuit Low Input,P,Fuel/Air,Medium
+P0108,Manifold Absolute Pressure/Barometric Pressure Circuit High Input,P,Fuel/Air,Medium
+P0110,Intake Air Temperature Circuit Malfunction,P,Fuel/Air,Low
+P0111,Intake Air Temperature Circuit Range/Performance,P,Fuel/Air,Low
+P0112,Intake Air Temperature Circuit Low Input,P,Fuel/Air,Low
+P0113,Intake Air Temperature Circuit High Input,P,Fuel/Air,Low
+P0115,Engine Coolant Temperature Circuit Malfunction,P,Cooling,Medium
+P0116,Engine Coolant Temperature Circuit Range/Performance,P,Cooling,Low
+P0117,Engine Coolant Temperature Circuit Low Input,P,Cooling,Medium
+P0118,Engine Coolant Temperature Circuit High Input,P,Cooling,Medium
+P0120,Throttle/Pedal Position Sensor A Circuit Malfunction,P,Fuel/Air,High
+P0121,Throttle/Pedal Position Sensor A Circuit Range/Performance,P,Fuel/Air,Medium
+P0122,Throttle/Pedal Position Sensor A Circuit Low Input,P,Fuel/Air,High
+P0123,Throttle/Pedal Position Sensor A Circuit High Input,P,Fuel/Air,High
+P0125,Insufficient Coolant Temperature for Closed Loop Fuel Control,P,Cooling,Medium
+P0128,Coolant Thermostat Below Regulating Temperature,P,Cooling,Low
+P0130,O2 Sensor Circuit Malfunction (Bank 1 Sensor 1),P,Emissions,High
+P0131,O2 Sensor Circuit Low Voltage (Bank 1 Sensor 1),P,Emissions,High
+P0132,O2 Sensor Circuit High Voltage (Bank 1 Sensor 1),P,Emissions,High
+P0133,O2 Sensor Circuit Slow Response (Bank 1 Sensor 1),P,Emissions,Medium
+P0134,O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 1),P,Emissions,High
+P0135,O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1),P,Emissions,Medium
+P0136,O2 Sensor Circuit Malfunction (Bank 1 Sensor 2),P,Emissions,Medium
+P0137,O2 Sensor Circuit Low Voltage (Bank 1 Sensor 2),P,Emissions,Medium
+P0138,O2 Sensor Circuit High Voltage (Bank 1 Sensor 2),P,Emissions,Medium
+P0141,O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 2),P,Emissions,Medium
+P0170,Fuel Trim Malfunction (Bank 1),P,Fuel/Air,Medium
+P0171,System Too Lean (Bank 1),P,Fuel/Air,Medium
+P0172,System Too Rich (Bank 1),P,Fuel/Air,Medium
+P0173,Fuel Trim Malfunction (Bank 2),P,Fuel/Air,Medium
+P0174,System Too Lean (Bank 2),P,Fuel/Air,Medium
+P0201,Injector Circuit/Open - Cylinder 1,P,Fuel/Air,High
+P0202,Injector Circuit/Open - Cylinder 2,P,Fuel/Air,High
+P0203,Injector Circuit/Open - Cylinder 3,P,Fuel/Air,High
+P0204,Injector Circuit/Open - Cylinder 4,P,Fuel/Air,High
+P0218,Transmission Over Temperature Condition,P,Transmission,High
+P0300,Random/Multiple Cylinder Misfire Detected,P,Ignition,High
+P0301,Cylinder 1 Misfire Detected,P,Ignition,High
+P0302,Cylinder 2 Misfire Detected,P,Ignition,High
+P0303,Cylinder 3 Misfire Detected,P,Ignition,High
+P0304,Cylinder 4 Misfire Detected,P,Ignition,High
+P0305,Cylinder 5 Misfire Detected,P,Ignition,High
+P0306,Cylinder 6 Misfire Detected,P,Ignition,High
+P0325,Knock Sensor 1 Circuit Malfunction,P,Ignition,Medium
+P0327,Knock Sensor 1 Circuit Low Input,P,Ignition,Medium
+P0328,Knock Sensor 1 Circuit High Input,P,Ignition,Medium
+P0335,Crankshaft Position Sensor A Circuit Malfunction,P,Ignition,Critical
+P0336,Crankshaft Position Sensor A Circuit Range/Performance,P,Ignition,Critical
+P0340,Camshaft Position Sensor A Circuit Malfunction,P,Ignition,Critical
+P0341,Camshaft Position Sensor A Circuit Range/Performance,P,Ignition,Critical
+P0351,Ignition Coil A Primary/Secondary Circuit Malfunction,P,Ignition,High
+P0352,Ignition Coil B Primary/Secondary Circuit Malfunction,P,Ignition,High
+P0400,Exhaust Gas Recirculation Flow Malfunction,P,Emissions,Low
+P0401,Exhaust Gas Recirculation Flow Insufficient Detected,P,Emissions,Low
+P0402,Exhaust Gas Recirculation Flow Excessive Detected,P,Emissions,Low
+P0404,Exhaust Gas Recirculation Circuit Range/Performance,P,Emissions,Low
+P0420,Catalyst System Efficiency Below Threshold (Bank 1),P,Emissions,Medium
+P0430,Catalyst System Efficiency Below Threshold (Bank 2),P,Emissions,Medium
+P0440,Evaporative Emission Control System Malfunction,P,Emissions,Low
+P0442,Evaporative Emission Control System Leak Detected (small leak),P,Emissions,Medium
+P0445,Evaporative Emission Control System Purge Control Valve Circuit Shorted,P,Emissions,Low
+P0446,Evaporative Emission Control System Vent Control Circuit Malfunction,P,Emissions,Low
+P0455,Evaporative Emission Control System Leak Detected (gross leak),P,Emissions,Medium
+P0456,Evaporative Emission Control System Leak Detected (very small leak),P,Emissions,Medium
+P0500,Vehicle Speed Sensor Malfunction,P,Transmission,High
+P0505,Idle Air Control System Malfunction,P,Fuel/Air,Low
+P0506,Idle Air Control System RPM Lower Than Expected,P,Fuel/Air,Low
+P0507,Idle Air Control System RPM Higher Than Expected,P,Fuel/Air,Low
+P0600,Serial Communication Link Malfunction,P,ECU,High
+P0601,Internal Control Module Memory Check Sum Error,P,ECU,Critical
+P0602,Control Module Programming Error,P,ECU,Critical
+P0606,ECM/PCM Processor Fault,P,ECU,Critical
+P0620,Generator Control Circuit Malfunction,P,Electrical,Medium
+P0622,Generator Field Terminal Circuit Malfunction,P,Electrical,Medium
+P0650,Malfunction Indicator Lamp Control Circuit Malfunction,P,ECU,Low
+P0700,Transmission Control System Malfunction,P,Transmission,High
+P0705,Transmission Range Sensor Circuit Malfunction,P,Transmission,High
+P0706,Transmission Range Sensor Circuit Range/Performance,P,Transmission,Medium
+P0715,Input/Turbine Speed Sensor Circuit Malfunction,P,Transmission,High
+P0720,Output Speed Sensor Circuit Malfunction,P,Transmission,High
+P0722,Output Speed Sensor Circuit No Signal,P,Transmission,High
+P0730,Incorrect Gear Ratio,P,Transmission,Medium
+P0740,Torque Converter Clutch Circuit Malfunction,P,Transmission,Medium
+P0741,Torque Converter Clutch Circuit Performance or Stuck Off,P,Transmission,Medium
+P0780,Shift Malfunction,P,Transmission,Medium
+P0800,Transfer Case Control System Malfunction,P,Transmission,Low
+P0840,Transmission Fluid Pressure Sensor/Switch A Circuit,P,Transmission,Medium
+P0845,Transmission Fluid Pressure Sensor/Switch B Circuit,P,Transmission,Medium
+P1000,OBD-II Monitor Testing Incomplete,P,ECU,Low
+P1100,Mass Air Flow Sensor Intermittent,P,Fuel/Air,Low
+P1120,Throttle Position Sensor Intermittent,P,Fuel/Air,Low
+P1130,Lack of HO2S-11 Switch Fuel Trim at Limit,P,Emissions,Medium
+P1151,Lack of HO2S-21 Switch Sensor Indicates Lean,P,Emissions,Medium
+P1300,Ignition Timing Adjustment Circuit Malfunction,P,Ignition,Low
+P1391,Intermittent Loss of CMP or CKP,P,Ignition,Critical
+P1400,EGR Valve Position Sensor Circuit Low Voltage,P,Emissions,Low
+P1441,Evaporative Emission System Flow During Non-Purge,P,Emissions,Low
+P1450,Unable to Bleed Up Fuel Tank Vacuum,P,Emissions,Low
+P1451,Evaporative Emission Control System Vent Control Circuit,P,Emissions,Low
+P1500,Vehicle Speed Sensor Intermittent,P,Transmission,Medium
+P1518,Throttle Actuator Control Motor Circuit Malfunction,P,Fuel/Air,High
+P1600,Serial Communication Link Malfunction,P,ECU,High
+P1699,ECU Internal Fault,P,ECU,Critical
+U0001,High Speed CAN Communication Bus,UNetwork,Critical
+U0100,Lost Communication With ECM/PCM A,UNetwork,Critical
+U0101,Lost Communication with TCM,UNetwork,Critical
+U0121,Lost Communication With Anti-Lock Brake System Control Module,UNetwork,High
+U0140,Lost Communication With Body Control Module,UNetwork,High
+U0151,Lost Communication With Restraints Control Module,UNetwork,High
+U0155,Lost Communication With Instrument Panel Cluster Control Module,UNetwork,Medium
+U0401,Invalid Data Received From ECM/PCM A,UNetwork,High
+U0416,Invalid Data Received From Vehicle Dynamics Control Module,UNetwork,Medium
+B1200,Climate Control Pushbutton Circuit Failure,B,Body,Low
+B1213,Anti-Theft Number of Programmed Keys Is Below Minimum,B,Body,Medium
+B1318,Battery Voltage Low,B,Electrical,Low
+B1342,ECU Internal Fault,B,ECU,Critical
+C0035,Left Front Wheel Speed Sensor Circuit Malfunction,C,ABS,High
+C0040,Right Front Wheel Speed Sensor Circuit Malfunction,C,ABS,High
+C0045,Left Rear Wheel Speed Sensor Circuit Malfunction,C,ABS,High
+C0050,Right Rear Wheel Speed Sensor Circuit Malfunction,C,ABS,High
+C1200,ABS Inlet Valve Coil Front Circuit Failure,C,ABS,High

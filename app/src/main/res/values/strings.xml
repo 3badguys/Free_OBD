@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Free OBD</string>
+    <string name="bluetooth_scan">Scan Devices</string>
+    <string name="bluetooth_connecting">Connecting…</string>
+    <string name="bluetooth_connected">Connected</string>
+    <string name="bluetooth_disconnected">Disconnected</string>
+    <string name="dashboard_title">Live Data</string>
+    <string name="dtc_title">Diagnostic Codes</string>
+    <string name="vehicle_info_title">Vehicle Info</string>
+    <string name="no_data">No data available</string>
+    <string name="error_generic">An unexpected error occurred</string>
+    <string name="retry">Retry</string>
+    <string name="clear_codes">Clear Codes</string>
+    <string name="protocol_auto">Auto Detect</string>
+    <string name="ecu_address_default">Default (0x7DF)</string>
+</resources>

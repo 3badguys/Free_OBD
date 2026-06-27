@@ -1,0 +1,114 @@
+package com.freeobd.app.presentation.dashboard
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.freeobd.app.domain.model.OBDData
+import com.freeobd.app.domain.repository.OBDRepository
+import com.freeobd.app.domain.usecase.DiscoverPIDsUseCase
+import com.freeobd.app.domain.usecase.ReadLiveDataUseCase
+import com.freeobd.app.utils.collectSafely
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+
+/**
+ * ViewModel for the live data dashboard.
+ *
+ * Manages:
+ * - PID selection for gauge display
+ * - Real-time data polling lifecycle
+ * - Polling rate control
+ */
+class DashboardViewModel(
+    private val readLiveDataUseCase: ReadLiveDataUseCase,
+    private val discoverPIDsUseCase: DiscoverPIDsUseCase,
+    private val obdRepository: OBDRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<DashboardUiState>(
+        DashboardUiState.Loading
+    )
+    val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    // Default PID set for initial display
+    private val _selectedPids = MutableStateFlow(
+        setOf(0x0C, 0x0D, 0x05, 0x11, 0x04, 0x2F)
+    )
+    val selectedPids: StateFlow<Set<Int>> = _selectedPids.asStateFlow()
+
+    private var pollingJob: Job? = null
+    private var pollingIntervalMs: Long = 250
+
+    // Latest known values (preserved across start/stop)
+    private val lastValues = mutableMapOf<Int, OBDData>()
+
+    fun onEvent(event: DashboardEvent) {
+        when (event) {
+            DashboardEvent.StartPolling -> startPolling()
+            DashboardEvent.StopPolling -> stopPolling()
+            is DashboardEvent.AddPid -> addPid(event.pidId)
+            is DashboardEvent.RemovePid -> removePid(event.pidId)
+            is DashboardEvent.SetPollingInterval -> {
+                pollingIntervalMs = event.intervalMs
+                // Restart polling with new interval if active
+                if (pollingJob?.isActive == true) {
+                    stopPolling()
+                    startPolling()
+                }
+            }
+        }
+    }
+
+    private fun startPolling() {
+        val pids = _selectedPids.value.toList()
+        if (pids.isEmpty()) {
+            _uiState.value = DashboardUiState.Error("No PIDs selected")
+            return
+        }
+
+        // Reset last values for a fresh start
+        lastValues.clear()
+
+        _uiState.value = DashboardUiState.Active(
+            pidValues = emptyMap(),
+            isPolling = true,
+            selectedPids = _selectedPids.value,
+            pollingIntervalMs = pollingIntervalMs
+        )
+
+        pollingJob = viewModelScope.launch {
+            readLiveDataUseCase(pids, pollingIntervalMs)
+                .collectSafely(viewModelScope) { pidValues ->
+                    lastValues.putAll(pidValues)
+                    _uiState.value = DashboardUiState.Active(
+                        pidValues = lastValues.toMap(),
+                        isPolling = true,
+                        selectedPids = _selectedPids.value,
+                        pollingIntervalMs = pollingIntervalMs
+                    )
+                }
+        }
+    }
+
+    private fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
+
+        _uiState.value = DashboardUiState.Paused(
+            lastValues = lastValues.toMap(),
+            selectedPids = _selectedPids.value
+        )
+    }
+
+    private fun addPid(pidId: Int) {
+        _selectedPids.update { it + pidId }
+    }
+
+    private fun removePid(pidId: Int) {
+        _selectedPids.update { it - pidId }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pollingJob?.cancel()
+    }
+}

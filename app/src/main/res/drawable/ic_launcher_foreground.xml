@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- OBD plug icon -->
+    <path
+        android:fillColor="#00D4AA"
+        android:pathData="M34,40 L34,54 L42,54 L42,62 L50,62 L50,68 L58,68 L58,62 L66,62 L66,54 L74,54 L74,40 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,46 L50,46 L50,52 L58,52 L58,56 L50,56 L50,48 L42,48 Z" />
+</vector>
