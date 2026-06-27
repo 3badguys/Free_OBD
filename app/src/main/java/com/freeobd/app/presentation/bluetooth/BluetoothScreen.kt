@@ -1,5 +1,10 @@
 package com.freeobd.app.presentation.bluetooth
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,8 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.DeviceType
@@ -36,7 +43,46 @@ fun BluetoothScreen(
     onNavigateToVehicleInfo: () -> Unit,
     viewModel: BluetoothViewModel = koinViewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Permission launcher
+    val bluetoothPermissions = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            viewModel.onEvent(BluetoothEvent.StartScan)
+        }
+    }
+
+    /** Check if Bluetooth permissions are granted. */
+    fun hasBluetoothPermissions(): Boolean {
+        return bluetoothPermissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    /** Start scan after checking permissions. */
+    fun requestPermissionsAndScan() {
+        if (hasBluetoothPermissions()) {
+            viewModel.onEvent(BluetoothEvent.StartScan)
+        } else {
+            permissionLauncher.launch(bluetoothPermissions)
+        }
+    }
 
     // Protocol selection dropdown state
     var showProtocolPicker by remember { mutableStateOf(false) }
@@ -90,7 +136,7 @@ fun BluetoothScreen(
             when (val state = uiState) {
                 BluetoothUiState.Idle -> {
                     IdleContent(
-                        onStartScan = { viewModel.onEvent(BluetoothEvent.StartScan) }
+                        onStartScan = { requestPermissionsAndScan() }
                     )
                 }
 
@@ -106,7 +152,7 @@ fun BluetoothScreen(
                         ecuAddress = ecuAddress,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
-                        onStartScan = { viewModel.onEvent(BluetoothEvent.StartScan) },
+                        onStartScan = { requestPermissionsAndScan() },
                         onStopScan = { viewModel.onEvent(BluetoothEvent.StopScan) },
                         onConnect = { device ->
                             viewModel.onEvent(
