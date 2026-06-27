@@ -192,16 +192,14 @@ class BluetoothViewModel(
     private fun observeConnectionState() {
         activeBtRepo.connectionState.collectSafely(viewModelScope) { state ->
             when (state) {
-                ConnectionState.DISCONNECTED, ConnectionState.DISCONNECTING ->
-                    if (_uiState.value !is BluetoothUiState.Error) {
-                        _uiState.value = BluetoothUiState.Idle
-                    }
                 ConnectionState.RECONNECTING ->
                     _uiState.value = BluetoothUiState.Error(
                         message = "Connection lost. Tap to reconnect.",
                         isRecoverable = true
                     )
-                else -> { /* handled by connect() flow */ }
+                // DISCONNECTED/DISCONNECTING are handled explicitly
+                // via stopScan()/disconnect()/dismissError() — not here
+                else -> { /* handled by explicit events */ }
             }
         }
     }
