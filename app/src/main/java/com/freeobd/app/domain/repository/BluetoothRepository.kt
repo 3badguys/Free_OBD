@@ -3,6 +3,7 @@ package com.freeobd.app.domain.repository
 import com.freeobd.app.data.remote.ObdTransport
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.ConnectionState
+import com.freeobd.app.domain.model.DeviceType
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -32,11 +33,14 @@ interface BluetoothRepository {
      * @param device The target Bluetooth device to connect to.
      * @param protocol The ELM327 protocol string (e.g. "ATSP0"). Use "ATSP0" for auto-detect.
      * @param ecuAddress The CAN ID address in hex format (e.g. "7DF"). Null for default.
+     * @param transportType The transport to use — SPP (classic) or BLE. Defaults to SPP
+     *   since the vast majority of OBD-II adapters use classic Bluetooth.
      */
     suspend fun connect(
         device: BluetoothDeviceInfo,
         protocol: String = "ATSP0",
-        ecuAddress: String? = null
+        ecuAddress: String? = null,
+        transportType: DeviceType = DeviceType.SPP
     ): Result<Unit>
 
     /** Disconnect from the currently connected adapter. */

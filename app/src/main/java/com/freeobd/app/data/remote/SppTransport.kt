@@ -6,7 +6,7 @@ import android.bluetooth.BluetoothSocket
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -17,6 +17,12 @@ import java.util.UUID
  * Establishes an RFCOMM socket connection to ELM327-style OBD-II adapters.
  * Includes socket timeout, fallback to insecure RFCOMM for older devices,
  * and proper resource cleanup on disconnect.
+ *
+ * Connection strategy (each fallback cleans up its failed socket before
+ * trying the next method, to avoid leaked sockets blocking the RFCOMM channel):
+ * 1. [tryConnectWithServiceRecord] — standard secure RFCOMM via SDP lookup
+ * 2. [tryConnectInsecure] — insecure RFCOMM (some adapters lack SDP)
+ * 3. [tryConnectReflection] — direct RFCOMM channel via reflection (1, 3, 5, 7, 10)
  */
 class SppTransport : ObdTransport {
 
@@ -45,26 +51,14 @@ class SppTransport : ObdTransport {
                     ?: throw IllegalStateException("Bluetooth not available on this device")
 
                 val bluetoothDevice: BluetoothDevice = adapter.getRemoteDevice(device.address)
-                val sppUuid = UUID.fromString(SPP_UUID)
 
-                // Attempt connection with socket timeout
-                socket = withTimeout(SOCKET_TIMEOUT_MS) {
-                    try {
-                        // Primary method: standard secure RFCOMM socket
-                        bluetoothDevice.createRfcommSocketToServiceRecord(sppUuid).also {
-                            it.connect()
-                        }
-                    } catch (e: Exception) {
-                        // Fallback: insecure RFCOMM socket for older adapters
-                        try {
-                            bluetoothDevice.createInsecureRfcommSocketToServiceRecord(sppUuid)
-                                .also { it.connect() }
-                        } catch (e2: Exception) {
-                            // Ultimate fallback: reflection-based socket for very old devices
-                            createReflectionSocket(bluetoothDevice)
-                        }
-                    }
-                }
+                // Try each connection method; each closes its own socket on failure
+                socket = tryConnectWithServiceRecord(bluetoothDevice)
+                    ?: tryConnectInsecure(bluetoothDevice)
+                    ?: tryConnectReflection(bluetoothDevice)
+                    ?: throw IllegalStateException(
+                        "Failed to connect to ${device.address}: all RFCOMM methods exhausted"
+                    )
 
                 isConnected = true
                 connectedAddress = device.address
@@ -85,14 +79,99 @@ class SppTransport : ObdTransport {
         }
     }
 
+    // ── Connection methods ────────────────────────────────────
+    //
+    // Each returns a connected BluetoothSocket on success, or null on
+    // failure. On failure, the socket is closed before returning null
+    // so it doesn't leak and block the RFCOMM channel for subsequent attempts.
+
     /**
-     * Fallback method using reflection to create a socket on older Samsung/HTC devices
-     * where the standard RFCOMM creation methods may fail.
+     * Primary method: standard secure RFCOMM socket via SDP service lookup.
      */
-    private fun createReflectionSocket(device: BluetoothDevice): BluetoothSocket {
-        val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-        return (method.invoke(device, REFLECTION_CHANNEL) as BluetoothSocket).also {
-            it.connect()
+    private suspend fun tryConnectWithServiceRecord(
+        device: BluetoothDevice
+    ): BluetoothSocket? {
+        val sppUuid = UUID.fromString(SPP_UUID)
+        var sock: BluetoothSocket? = null
+        return try {
+            sock = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                device.createRfcommSocketToServiceRecord(sppUuid)
+            } ?: return null // socket creation timed out
+
+            val connected = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                sock!!.connect()
+            }
+
+            if (connected == null) { // connect() timed out
+                closeQuietly(sock)
+                return null
+            }
+            sock
+        } catch (e: Exception) {
+            closeQuietly(sock)
+            null
+        }
+    }
+
+    /**
+     * Fallback 1: insecure RFCOMM socket (for adapters without proper SDP records).
+     */
+    private suspend fun tryConnectInsecure(
+        device: BluetoothDevice
+    ): BluetoothSocket? {
+        val sppUuid = UUID.fromString(SPP_UUID)
+        var sock: BluetoothSocket? = null
+        return try {
+            sock = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                device.createInsecureRfcommSocketToServiceRecord(sppUuid)
+            } ?: return null // socket creation timed out
+
+            val connected = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                sock!!.connect()
+            }
+
+            if (connected == null) { // connect() timed out
+                closeQuietly(sock)
+                return null
+            }
+            sock
+        } catch (e: Exception) {
+            closeQuietly(sock)
+            null
+        }
+    }
+
+    /**
+     * Fallback 2: reflection-based socket for very old or non-standard adapters.
+     *
+     * Tries multiple common RFCOMM channels [1, 3, 5, 7, 10] since the adapter
+     * may not use the default channel 1.
+     */
+    private fun tryConnectReflection(device: BluetoothDevice): BluetoothSocket? {
+        for (channel in REFLECTION_CHANNELS) {
+            var sock: BluetoothSocket? = null
+            try {
+                val method = device.javaClass.getMethod(
+                    "createRfcommSocket", Int::class.javaPrimitiveType
+                )
+                sock = method.invoke(device, channel) as BluetoothSocket
+                sock.connect()
+                return sock // success on this channel
+            } catch (e: Exception) {
+                closeQuietly(sock)
+                // Try next channel after a short delay
+                runCatching { Thread.sleep(CHANNEL_RETRY_DELAY_MS) }
+            }
+        }
+        return null // all channels exhausted
+    }
+
+    /** Close a socket silently; never throws. */
+    private fun closeQuietly(sock: BluetoothSocket?) {
+        try {
+            sock?.close()
+        } catch (_: Exception) {
+            // Already closed or invalid — ignore
         }
     }
 
@@ -100,10 +179,13 @@ class SppTransport : ObdTransport {
         /** Well-known SPP UUID for serial port profile. */
         private const val SPP_UUID = "00001101-0000-1000-8000-00805F9B34FB"
 
-        /** Socket connection timeout in milliseconds. */
-        private const val SOCKET_TIMEOUT_MS = 5_000L
+        /** Timeout for individual socket creation and connect() calls. */
+        private const val CONNECT_TIMEOUT_MS = 4_000L
 
-        /** RFCOMM channel used in reflection-based fallback. */
-        private const val REFLECTION_CHANNEL = 1
+        /** Common RFCOMM channels to try via the reflection method. */
+        private val REFLECTION_CHANNELS = intArrayOf(1, 3, 5, 7, 10)
+
+        /** Delay between channel retries in the reflection fallback. */
+        private const val CHANNEL_RETRY_DELAY_MS = 200L
     }
 }

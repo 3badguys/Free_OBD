@@ -89,6 +89,7 @@ fun BluetoothScreen(
     var showProtocolPicker by remember { mutableStateOf(false) }
     var showAdvancedOptions by remember { mutableStateOf(false) }
     var selectedProtocol by remember { mutableStateOf("ATSP0 (Auto)") }
+    var selectedTransport by remember { mutableStateOf("SPP") }
     var ecuAddress by remember { mutableStateOf("") }
 
     Scaffold(
@@ -188,6 +189,7 @@ fun BluetoothScreen(
                         devices = state.devices,
                         isScanning = state.isScanning,
                         selectedProtocol = selectedProtocol,
+                        selectedTransport = selectedTransport,
                         ecuAddress = ecuAddress,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
@@ -198,7 +200,8 @@ fun BluetoothScreen(
                                 BluetoothEvent.Connect(
                                     device = device,
                                     protocol = protocolToAtCommand(selectedProtocol),
-                                    ecuAddress = ecuAddress.ifBlank { null }
+                                    ecuAddress = ecuAddress.ifBlank { null },
+                                    transportType = if (selectedTransport == "BLE") DeviceType.BLE else DeviceType.SPP
                                 )
                             )
                         },
@@ -206,6 +209,7 @@ fun BluetoothScreen(
                             selectedProtocol = display
                             showProtocolPicker = false
                         },
+                        onTransportSelected = { selectedTransport = it },
                         onToggleProtocolPicker = { showProtocolPicker = it },
                         onToggleAdvanced = { showAdvancedOptions = it },
                         onEcuAddressChanged = { ecuAddress = it }
@@ -303,6 +307,7 @@ private fun DeviceListContent(
     devices: List<BluetoothDeviceInfo>,
     isScanning: Boolean,
     selectedProtocol: String,
+    selectedTransport: String,
     ecuAddress: String,
     showProtocolPicker: Boolean,
     showAdvancedOptions: Boolean,
@@ -310,6 +315,7 @@ private fun DeviceListContent(
     onStopScan: () -> Unit,
     onConnect: (BluetoothDeviceInfo) -> Unit,
     onProtocolSelected: (String) -> Unit,
+    onTransportSelected: (String) -> Unit,
     onToggleProtocolPicker: (Boolean) -> Unit,
     onToggleAdvanced: (Boolean) -> Unit,
     onEcuAddressChanged: (String) -> Unit
@@ -348,44 +354,63 @@ private fun DeviceListContent(
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        // Protocol picker
-        TextButton(
-            onClick = { onToggleProtocolPicker(!showProtocolPicker) },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+        // Transport / Protocol / Advanced — single row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Protocol: $selectedProtocol",
-                style = MaterialTheme.typography.bodySmall,
-                color = OnSurface
+            // Transport type toggle (SPP / BLE)
+            TextButton(
+                onClick = { onTransportSelected(if (selectedTransport == "SPP") "BLE" else "SPP") },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "Transport: $selectedTransport",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurface
+                )
+            }
+
+            // Protocol picker
+            TextButton(
+                onClick = { onToggleProtocolPicker(!showProtocolPicker) },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "Protocol: $selectedProtocol",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurface
+                )
+                Icon(
+                    if (showProtocolPicker) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = OnSurface
+                )
+            }
+
+            // Advanced options toggle
+            TextButton(
+                onClick = { onToggleAdvanced(!showAdvancedOptions) },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "Advanced",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurfaceVariant
+                )
+                Icon(
+                    if (showAdvancedOptions) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                tint = OnSurfaceVariant
             )
-            Icon(
-                if (showProtocolPicker) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = OnSurface
-            )
-        }
+            } // Advanced TextButton
+        } // Row (transport / protocol / advanced)
 
         if (showProtocolPicker) {
             ProtocolPicker(onProtocolSelected = onProtocolSelected)
-        }
-
-        // Advanced options toggle
-        TextButton(
-            onClick = { onToggleAdvanced(!showAdvancedOptions) },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                "Advanced Options",
-                style = MaterialTheme.typography.bodySmall,
-                color = OnSurfaceVariant
-            )
-            Icon(
-                if (showAdvancedOptions) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = OnSurfaceVariant
-            )
         }
 
         if (showAdvancedOptions) {

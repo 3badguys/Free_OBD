@@ -43,11 +43,9 @@ class BleTransport(private val context: Context) : ObdTransport {
 
     override val inputStream: InputStream
         get() = BleInputStream(rxCharacteristic)
-            ?: throw IllegalStateException("Not connected — no BLE RX characteristic available")
 
     override val outputStream: OutputStream
         get() = BleOutputStream(txCharacteristic, bluetoothGatt)
-            ?: throw IllegalStateException("Not connected — no BLE TX characteristic available")
 
     override suspend fun connect(device: BluetoothDeviceInfo): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -98,7 +96,7 @@ class BleTransport(private val context: Context) : ObdTransport {
 
     private suspend fun connectGatt(device: BluetoothDevice): BluetoothGatt =
         suspendCancellableCoroutine { continuation ->
-            device.connectGatt(
+            val gatt = device.connectGatt(
                 context, false,
                 object : BluetoothGattCallback() {
                     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -112,6 +110,18 @@ class BleTransport(private val context: Context) : ObdTransport {
                     }
                 }
             )
+
+            // If the coroutine is cancelled (e.g. withTimeout fires),
+            // clean up the GATT object so it doesn't hold Bluetooth resources
+            // that would block a subsequent SPP fallback attempt.
+            continuation.invokeOnCancellation {
+                try {
+                    gatt.disconnect()
+                    gatt.close()
+                } catch (_: Exception) {
+                    // Ignore cleanup errors
+                }
+            }
         }
 
     private suspend fun discoverServices() {

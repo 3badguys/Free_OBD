@@ -7,6 +7,7 @@ import com.freeobd.app.data.mock.MockBluetoothRepository
 import com.freeobd.app.data.mock.MockOBDRepository
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.ConnectionState
+import com.freeobd.app.domain.model.DeviceType
 import com.freeobd.app.domain.repository.BluetoothRepository
 import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ConnectBluetoothUseCase
@@ -45,6 +46,7 @@ class BluetoothViewModel(
     private var toggleInProgress = false
 
     private var selectedProtocol: String = "ATSP0"
+    private var selectedTransportType: DeviceType = DeviceType.SPP
     private var ecuAddress: String? = null
     // Use map keyed by address to deduplicate — data class equals/hashCode includes
     // all fields (including rssi), so a Set can't guarantee uniqueness by address alone.
@@ -58,10 +60,11 @@ class BluetoothViewModel(
         when (event) {
             BluetoothEvent.StartScan -> startScan()
             BluetoothEvent.StopScan -> stopScan()
-            is BluetoothEvent.Connect -> connect(event.device, event.protocol, event.ecuAddress)
+            is BluetoothEvent.Connect -> connect(event.device, event.protocol, event.ecuAddress, event.transportType)
             BluetoothEvent.Disconnect -> disconnect()
             BluetoothEvent.DismissError -> dismissError()
             is BluetoothEvent.SelectProtocol -> { selectedProtocol = event.protocol }
+            is BluetoothEvent.SelectTransport -> { selectedTransportType = event.transportType }
             is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address.ifBlank { null } }
             is BluetoothEvent.ToggleDemoMode -> toggleDemoMode()
         }
@@ -138,13 +141,18 @@ class BluetoothViewModel(
         }
     }
 
-    private fun connect(device: BluetoothDeviceInfo, protocol: String, ecuAddress: String?) {
+    private fun connect(
+        device: BluetoothDeviceInfo,
+        protocol: String,
+        ecuAddress: String?,
+        transportType: DeviceType
+    ) {
         val repo = activeBtRepo
         viewModelScope.launch {
             _uiState.value = BluetoothUiState.Connecting(device)
 
             if (_isDemoMode.value) {
-                repo.connect(device, protocol, ecuAddress).fold(
+                repo.connect(device, protocol, ecuAddress, transportType).fold(
                     onSuccess = {
                         activeObdRepo.initELM327(protocol, ecuAddress).fold(
                             onSuccess = {
@@ -172,7 +180,7 @@ class BluetoothViewModel(
                     }
                 )
             } else {
-                connectBluetoothUseCase(device, protocol, ecuAddress).fold(
+                connectBluetoothUseCase(device, protocol, ecuAddress, transportType).fold(
                     onSuccess = {
                         _uiState.value = BluetoothUiState.Connected(
                             deviceName = device.name ?: device.address,

@@ -41,6 +41,11 @@ class OBDRepositoryImpl(
     // ── Initialization ─────────────────────────────────────
     override suspend fun initELM327(protocol: String, ecuAddress: String?): Result<Unit> {
         return runCatching {
+            // Reset cached command queue so we always use the current transport.
+            // If we don't do this, a reconnection after disconnect would reuse
+            // the old queue referencing a stale (disconnected) transport, causing
+            // "Not connected—no input stream available".
+            commandQueue = null
             val queue = requireQueue()
             queue.initialize()
             ELM327Initializer(queue).initialize(protocol, ecuAddress).getOrThrow()
@@ -291,7 +296,8 @@ class OBDRepositoryImpl(
 
     fun release() {
         repositoryScope.cancel()
-        requireQueue().release()
+        commandQueue?.release()
+        commandQueue = null
         supportedPids.clear()
     }
 }

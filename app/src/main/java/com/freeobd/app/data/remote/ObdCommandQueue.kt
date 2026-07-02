@@ -4,6 +4,8 @@ import com.github.eltonvs.obd.command.ObdCommand
 import com.github.eltonvs.obd.command.ObdResponse
 import com.github.eltonvs.obd.connection.ObdDeviceConnection
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.ByteArrayOutputStream
 
 /**
@@ -20,22 +22,46 @@ class ObdCommandQueue(
     private var connection: ObdDeviceConnection? = null
     private var isFirstCommand = true
 
+    /**
+     * Mutex to serialize all command execution.
+     *
+     * Without this, concurrent calls to [sendRaw] (e.g. PID discovery running
+     * in parallel with live data polling) corrupt the shared InputStream/OutputStream.
+     * The ELM327 is a half-duplex serial protocol — only one command may be
+     * in flight at a time.
+     */
+    private val mutex = kotlinx.coroutines.sync.Mutex()
+
     fun initialize() {
         connection = ObdDeviceConnection(transport.inputStream, transport.outputStream)
         isFirstCommand = true
+
+        // Flush any initial data the adapter may have emitted upon connection
+        // (e.g. welcome banner "ELM327 v2.1"). Without this, the first command
+        // would read stale buffered data instead of its actual response.
+        try {
+            val input = transport.inputStream
+            while (input.available() > 0) {
+                input.skip(input.available().toLong())
+            }
+        } catch (_: Exception) {
+            // InputStream may not support available() — ignore
+        }
     }
 
     // ── Library command execution ──────────────────────────
 
     /** Run a kotlin-obd-api library command. */
     suspend fun runLibraryCommand(command: ObdCommand): Result<ObdResponse> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val conn = connection ?: throwNotInitialized()
-                val response = withTimeout(commandTimeout()) { conn.run(command) }
-                if (isFirstCommand) isFirstCommand = false
-                delay(interCommandDelayMs)
-                response
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val conn = connection ?: throwNotInitialized()
+                    val response = withTimeout(commandTimeout()) { conn.run(command) }
+                    if (isFirstCommand) isFirstCommand = false
+                    delay(interCommandDelayMs)
+                    response
+                }
             }
         }
 
@@ -49,28 +75,32 @@ class ObdCommandQueue(
      * 2. Reads the response until the '>' prompt
      * 3. Strips echo bytes if present
      *
+     * All calls are serialized via [mutex] — the ELM327 is half-duplex.
+     *
      * @param rawCommand The command string without '\\r' suffix (e.g. "010C").
      * @return Raw response bytes (with echo and prompt stripped).
      */
     suspend fun sendRaw(rawCommand: String): Result<ByteArray> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val cmd = if (rawCommand.endsWith("\r")) rawCommand else "$rawCommand\r"
-                transport.outputStream.write(cmd.toByteArray(Charsets.US_ASCII))
-                transport.outputStream.flush()
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val cmd = if (rawCommand.endsWith("\r")) rawCommand else "$rawCommand\r"
+                    transport.outputStream.write(cmd.toByteArray(Charsets.US_ASCII))
+                    transport.outputStream.flush()
 
-                delay(50) // Minimal delay for adapter to start responding
+                    delay(50) // Minimal delay for adapter to start responding
 
-                val response = withTimeout(commandTimeout()) {
-                    readResponse()
+                    val response = withTimeout(commandTimeout()) {
+                        readResponse()
+                    }
+
+                    if (isFirstCommand) isFirstCommand = false
+                    delay(interCommandDelayMs)
+
+                    // If echo is on, strip the echoed command from the response
+                    val result = stripEcho(rawCommand, response)
+                    result
                 }
-
-                if (isFirstCommand) isFirstCommand = false
-                delay(interCommandDelayMs)
-
-                // If echo is on, strip the echoed command from the response
-                val result = stripEcho(rawCommand, response)
-                result
             }
         }
 
@@ -85,11 +115,14 @@ class ObdCommandQueue(
 
     /**
      * Read response bytes from the input stream until the ELM327 prompt '>'.
+     *
+     * The ELM327 signals end-of-response with a single '>' character.
+     * We wait up to the command timeout for data — the caller wraps this
+     * in [withTimeout], so a hung adapter will be caught at that level.
      */
     private fun readResponse(): ByteArray {
         val buffer = ByteArrayOutputStream()
         val input = transport.inputStream
-        var consecutivePrompt = 0
 
         while (true) {
             val b = input.read()
@@ -97,13 +130,8 @@ class ObdCommandQueue(
 
             buffer.write(b)
 
-            // Detect '>' prompt character
-            if (b == '>'.code) {
-                consecutivePrompt++
-                if (consecutivePrompt >= 2) break // Two consecutive '>' signals end
-            } else {
-                consecutivePrompt = 0
-            }
+            // ELM327 prompt '>' signals end of response
+            if (b == '>'.code) break
 
             // Safety: limit response size
             if (buffer.size() > MAX_RESPONSE_SIZE) break

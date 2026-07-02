@@ -195,16 +195,18 @@ class BluetoothRepositoryImpl(
     override suspend fun connect(
         device: BluetoothDeviceInfo,
         protocol: String,
-        ecuAddress: String?
+        ecuAddress: String?,
+        transportType: DeviceType
     ): Result<Unit> = withContext(Dispatchers.IO) {
         _connectionState.value = ConnectionState.CONNECTING
 
-        val transport: ObdTransport = when (device.type) {
+        val transport: ObdTransport = when (transportType) {
             DeviceType.BLE -> BleTransport(context)
             DeviceType.SPP, DeviceType.UNKNOWN -> SppTransport()
         }
 
         val result = transport.connect(device)
+
         if (result.isSuccess) {
             activeTransport = transport
             isConnected = true

@@ -2,6 +2,7 @@ package com.freeobd.app.domain.usecase
 
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.ConnectionState
+import com.freeobd.app.domain.model.DeviceType
 import com.freeobd.app.domain.repository.BluetoothRepository
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.flow.Flow
@@ -30,10 +31,11 @@ class ConnectBluetoothUseCase(
     suspend operator fun invoke(
         device: BluetoothDeviceInfo,
         protocol: String = "ATSP0",
-        ecuAddress: String? = null
+        ecuAddress: String? = null,
+        transportType: DeviceType = DeviceType.SPP
     ): Result<Unit> {
         // Step 1: Establish Bluetooth connection
-        bluetoothRepository.connect(device).getOrElse { error ->
+        bluetoothRepository.connect(device, protocol, ecuAddress, transportType).getOrElse { error ->
             return Result.failure(
                 ConnectionException("Bluetooth connection failed: ${error.message}", error)
             )

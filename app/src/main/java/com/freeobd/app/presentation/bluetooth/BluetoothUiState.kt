@@ -1,6 +1,7 @@
 package com.freeobd.app.presentation.bluetooth
 
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
+import com.freeobd.app.domain.model.DeviceType
 
 /**
  * Sealed class hierarchy for the Bluetooth connection screen UI state.
@@ -56,7 +57,8 @@ sealed interface BluetoothEvent {
     data class Connect(
         val device: BluetoothDeviceInfo,
         val protocol: String = "ATSP0",
-        val ecuAddress: String? = null
+        val ecuAddress: String? = null,
+        val transportType: DeviceType = DeviceType.SPP
     ) : BluetoothEvent
 
     /** Disconnect from the current device. */
@@ -67,6 +69,9 @@ sealed interface BluetoothEvent {
 
     /** Select a specific OBD protocol. */
     data class SelectProtocol(val protocol: String) : BluetoothEvent
+
+    /** Select the Bluetooth transport type (SPP or BLE). */
+    data class SelectTransport(val transportType: DeviceType) : BluetoothEvent
 
     /** Set a specific ECU CAN address. */
     data class SetEcuAddress(val address: String) : BluetoothEvent

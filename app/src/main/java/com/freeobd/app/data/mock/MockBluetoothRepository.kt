@@ -85,7 +85,8 @@ class MockBluetoothRepository : BluetoothRepository {
     override suspend fun connect(
         device: BluetoothDeviceInfo,
         protocol: String,
-        ecuAddress: String?
+        ecuAddress: String?,
+        transportType: DeviceType
     ): Result<Unit> {
         _connectionState.value = ConnectionState.CONNECTING
         delay(500) // Simulate connection time
