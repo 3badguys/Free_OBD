@@ -46,7 +46,9 @@ class BluetoothViewModel(
 
     private var selectedProtocol: String = "ATSP0"
     private var ecuAddress: String? = null
-    private val discoveredDevices = mutableSetOf<BluetoothDeviceInfo>()
+    // Use map keyed by address to deduplicate — data class equals/hashCode includes
+    // all fields (including rssi), so a Set can't guarantee uniqueness by address alone.
+    private val discoveredDevices = linkedMapOf<String, BluetoothDeviceInfo>()
 
     init {
         startConnectionObserver()
@@ -110,9 +112,9 @@ class BluetoothViewModel(
         scanLaunchJob = viewModelScope.launch {
             // Start collecting BEFORE calling startScan() so we don't miss events
             scanCollectorJob = repo.scanResults.collectSafely(viewModelScope) { device ->
-                discoveredDevices.add(device)
+                discoveredDevices[device.address] = device
                 _uiState.value = BluetoothUiState.DevicesFound(
-                    devices = discoveredDevices.toList().sortedByDescending { it.rssi ?: -100 },
+                    devices = discoveredDevices.values.toList().sortedByDescending { it.rssi ?: -100 },
                     isScanning = true
                 )
             }
@@ -130,7 +132,7 @@ class BluetoothViewModel(
         viewModelScope.launch {
             activeBtRepo.stopScan()
             _uiState.value = BluetoothUiState.DevicesFound(
-                devices = discoveredDevices.toList().sortedByDescending { it.rssi ?: -100 },
+                devices = discoveredDevices.values.toList().sortedByDescending { it.rssi ?: -100 },
                 isScanning = false
             )
         }

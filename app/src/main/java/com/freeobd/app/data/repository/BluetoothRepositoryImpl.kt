@@ -3,6 +3,7 @@ package com.freeobd.app.data.repository
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -37,7 +38,15 @@ class BluetoothRepositoryImpl(
     private val context: Context
 ) : BluetoothRepository {
 
-    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    @Suppress("DEPRECATION")
+    private val bluetoothAdapter: BluetoothAdapter? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            manager?.adapter
+        } else {
+            BluetoothAdapter.getDefaultAdapter()
+        }
+    }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -55,6 +64,10 @@ class BluetoothRepositoryImpl(
     private val scanJob = SupervisorJob()
     private val scanScope = CoroutineScope(scanJob + Dispatchers.IO)
     private var scanReceiver: BroadcastReceiver? = null
+
+    // Track addresses already emitted during the current scan session to prevent duplicates
+    // and prevent out-of-range paired devices from appearing.
+    private val scannedAddresses = mutableSetOf<String>()
 
     @Volatile
     override var isConnected: Boolean = false
@@ -81,6 +94,7 @@ class BluetoothRepositoryImpl(
         }
 
         _connectionState.value = ConnectionState.SCANNING
+        scannedAddresses.clear()
 
         // Register broadcast receiver for classic Bluetooth discovery results
         val receiver = object : BroadcastReceiver() {
@@ -101,24 +115,20 @@ class BluetoothRepositoryImpl(
                             .let { if (it != Short.MIN_VALUE) it.toInt() else null }
 
                         device?.let {
-                            scanScope.launch {
-                                _scanResults.emit(
-                                    BluetoothDeviceInfo(
-                                        address = device.address,
-                                        name = device.name,
-                                        type = detectDeviceType(device),
-                                        rssi = rssi,
-                                        isPaired = device.bondState == BluetoothDevice.BOND_BONDED
-                                    )
+                            emitDevice(
+                                BluetoothDeviceInfo(
+                                    address = device.address,
+                                    name = device.name,
+                                    type = detectDeviceType(device),
+                                    rssi = rssi,
+                                    isPaired = device.bondState == BluetoothDevice.BOND_BONDED
                                 )
-                            }
+                            )
                         }
                     }
 
                     BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
                         stopScanInternal()
-                        // Also emit paired devices that might not show up in discovery
-                        emitPairedDevices()
                         _connectionState.compareAndSet(
                             ConnectionState.SCANNING,
                             ConnectionState.DISCONNECTED
@@ -170,6 +180,18 @@ class BluetoothRepositoryImpl(
         }
     }
 
+    /**
+     * Emit a scan result, skipping duplicates by address within the current scan session.
+     * Returns true if the device was actually emitted (first time seen this scan).
+     */
+    private fun emitDevice(info: BluetoothDeviceInfo) {
+        if (scannedAddresses.add(info.address)) {
+            scanScope.launch {
+                _scanResults.emit(info)
+            }
+        }
+    }
+
     override suspend fun connect(
         device: BluetoothDeviceInfo,
         protocol: String,
@@ -210,17 +232,22 @@ class BluetoothRepositoryImpl(
     private val bleScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device
-            scanScope.launch {
-                _scanResults.emit(
-                    BluetoothDeviceInfo(
-                        address = device.address,
-                        name = device.name ?: "BLE OBD Adapter",
-                        type = DeviceType.BLE,
-                        rssi = result.rssi,
-                        isPaired = device.bondState == BluetoothDevice.BOND_BONDED
-                    )
-                )
+            // Only emit BLE devices that are likely OBD adapters or have names suggesting OBD.
+            // Unnamed BLE devices are NOT assumed to be OBD adapters — otherwise every
+            // nearby unnamed BLE device (watch, headphone, etc.) shows up with "BLE OBD Adapter".
+            val name = device.name
+            if (name == null && !isLikelyObdDevice(null, device.address)) {
+                return // Skip unnamed, non-OBD BLE devices
             }
+            emitDevice(
+                BluetoothDeviceInfo(
+                    address = device.address,
+                    name = name ?: "Unknown BLE Device",
+                    type = DeviceType.BLE,
+                    rssi = result.rssi,
+                    isPaired = device.bondState == BluetoothDevice.BOND_BONDED
+                )
+            )
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -235,33 +262,6 @@ class BluetoothRepositoryImpl(
             } catch (e: SecurityException) {
                 android.util.Log.w("BluetoothRepo", "BLE scan failed: permission denied")
             }
-        }
-    }
-
-    /**
-     * Emit already-paired devices that may be OBD adapters.
-     * Paired devices don't always appear in discovery scans.
-     */
-    private fun emitPairedDevices() {
-        val adapter = bluetoothAdapter ?: return
-        try {
-            val pairedDevices: Set<BluetoothDevice> = adapter.bondedDevices
-            pairedDevices.forEach { device ->
-                if (isLikelyObdDevice(device.name, device.address)) {
-                    scanScope.launch {
-                        _scanResults.emit(
-                            BluetoothDeviceInfo(
-                                address = device.address,
-                                name = device.name,
-                                type = DeviceType.SPP,
-                                isPaired = true
-                            )
-                        )
-                    }
-                }
-            }
-        } catch (_: SecurityException) {
-            // Permissions not granted
         }
     }
 

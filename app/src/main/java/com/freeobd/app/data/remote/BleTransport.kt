@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
@@ -51,7 +52,8 @@ class BleTransport(private val context: Context) : ObdTransport {
     override suspend fun connect(device: BluetoothDeviceInfo): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                val adapter = manager?.adapter
                     ?: throw IllegalStateException("Bluetooth not available on this device")
 
                 val bluetoothDevice: BluetoothDevice = adapter.getRemoteDevice(device.address)

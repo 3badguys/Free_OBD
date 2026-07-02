@@ -412,10 +412,12 @@ private fun DeviceListContent(
                 )
             }
         } else {
+            // distinctBy prevents crash if duplicates slip through despite ViewModel dedup
+            val uniqueDevices = devices.distinctBy { it.address }
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(devices, key = { it.address }) { device ->
+                items(uniqueDevices, key = { it.address }) { device ->
                     DeviceCard(device = device, onConnect = { onConnect(device) })
                 }
             }

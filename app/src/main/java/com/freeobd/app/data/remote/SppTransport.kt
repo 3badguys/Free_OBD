@@ -37,6 +37,7 @@ class SppTransport : ObdTransport {
         get() = socket?.outputStream
             ?: throw IllegalStateException("Not connected — no output stream available")
 
+    @Suppress("DEPRECATION")
     override suspend fun connect(device: BluetoothDeviceInfo): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
