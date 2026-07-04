@@ -128,10 +128,10 @@ class ObdCommandQueue(
             val b = input.read()
             if (b == -1) break
 
-            buffer.write(b)
-
-            // ELM327 prompt '>' signals end of response
+            // ELM327 prompt '>' signals end of response — don't include it
             if (b == '>'.code) break
+
+            buffer.write(b)
 
             // Safety: limit response size
             if (buffer.size() > MAX_RESPONSE_SIZE) break

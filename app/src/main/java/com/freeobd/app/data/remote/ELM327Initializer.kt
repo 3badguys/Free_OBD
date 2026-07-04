@@ -5,16 +5,15 @@ import kotlinx.coroutines.delay
 /**
  * Executes the ELM327 initialization sequence using raw AT commands.
  *
- * Standard init sequence (no ATZ — it causes cheap clone adapters to
- * reset their Bluetooth module and drop the RFCOMM connection):
- * 1. ATE0 — Disable command echo
- * 2. ATL0 — Disable line feeds
- * 3. ATSPx — Protocol selection (default: ATSP0 = auto-detect)
- * 4. ATH1 — Enable CAN headers
- * 5. ATSH — Set CAN header address (optional)
- *
  * ATZ is skipped because many ELM327 clones reboot their entire adapter
  * (including the Bluetooth chip) on reset, breaking the connection.
+ *
+ * CAN bus protocol init:
+ *   1. ATE0 — Disable command echo
+ *   2. ATL0 — Disable line feeds
+ *   3. ATSPx — Protocol selection
+ *   4. ATH1 — Enable CAN headers (CAN only, skipped for K-line ATSP3/4/5)
+ *   5. ATSH — Set CAN/K-line header address (optional)
  *
  * Each step has an appropriate post-command delay.
  */
@@ -51,11 +50,9 @@ class ELM327Initializer(
         val steps = mutableListOf<InitStep>()
 
         // Step 0: Wake up — send a bare CR to trigger the adapter's prompt.
-        // Some adapters need this before accepting AT commands.
         steps.add(InitStep("wake-up", "\r", 200L))
 
-        // Step 1: Disable echo (soft reset alternative — most adapters
-        // respond to this without needing ATZ)
+        // Step 1: Disable echo
         steps.add(InitStep("ATE0 (disable echo)", "ATE0", 300L))
 
         // Step 2: Disable line feed
@@ -71,8 +68,11 @@ class ELM327Initializer(
             )
         )
 
-        // Step 4: Enable headers
-        steps.add(InitStep("ATH1 (enable headers)", "ATH1", 200L))
+        // Step 4: Enable CAN headers (CAN-only; skipped for K-line as K-line
+        // doesn't have CAN-style headers and the adapter handles init automatically)
+        if (proto !in KLINE_PROTOCOLS) {
+            steps.add(InitStep("ATH1 (enable CAN headers)", "ATH1", 200L))
+        }
 
         // Step 5 (optional): Set ECU address
         if (!ecuAddress.isNullOrBlank()) {
@@ -93,6 +93,9 @@ class ELM327Initializer(
             "ATSP0", "ATSP1", "ATSP2", "ATSP3", "ATSP4",
             "ATSP5", "ATSP6", "ATSP7", "ATSP8", "ATSP9"
         )
+
+        /** K-line based protocols (ISO 9141-2 / KWP2000). */
+        private val KLINE_PROTOCOLS = setOf("ATSP3", "ATSP4", "ATSP5")
     }
 }
 

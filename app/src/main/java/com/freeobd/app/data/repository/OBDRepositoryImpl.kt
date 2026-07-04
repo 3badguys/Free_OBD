@@ -5,6 +5,7 @@ import com.freeobd.app.data.remote.*
 import com.freeobd.app.domain.model.*
 import com.freeobd.app.domain.repository.BluetoothRepository
 import com.freeobd.app.domain.repository.OBDRepository
+import com.freeobd.app.utils.ByteUtils
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -56,8 +57,30 @@ class OBDRepositoryImpl(
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
         return runCatching {
             val queue = requireQueue()
-            val number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
+
+            // If protocol is still auto (not yet negotiated with the vehicle),
+            // send a real OBD command to force the ELM327 to detect the protocol.
+            var number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
+            if (number == "A0") {
+                // 0100 = Mode 01 PID 00 — query supported PIDs. All OBD-II vehicles
+                // must support this, and it forces the adapter to lock onto the
+                // vehicle's actual protocol.
+                // markFirstCommand grants the 10s timeout needed for auto-detect
+                // to try multiple protocols.
+                queue.markFirstCommand()
+                queue.sendRaw("0100")
+                delay(500)
+                number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
+            }
+
             val description = parseProtocolDescription(queue.sendRaw("ATDP").getOrThrow())
+
+            // Give the first OBD data command a 10s timeout.
+            // Critical for K-line (ATSP3/4/5): the ELM327 performs a slow
+            // 5-baud init on the first data command, which takes ~5 seconds.
+            // Without this, the 3s standard timeout cuts it off mid-init.
+            queue.markFirstCommand()
+
             ProtocolInfo(description = description, number = number)
         }
     }
@@ -166,24 +189,32 @@ class OBDRepositoryImpl(
             val vin = readOptional {
                 val rawBytes = requireQueue().sendRaw("0902").getOrThrow()
                 val data = extractDataBytes(rawBytes)
-                // Try multi-frame reassembly first
+                // Try multi-frame reassembly first; then fall back to raw data
+                // (skipping the PCI/record-number prefix byte that some ECUs prepend).
                 val reassembled = multiFrameHandler.processFrame(data)
-                reassembled?.let { String(it).trim().takeIf { it.isNotBlank() } }
-                    ?: data.let { String(it).trim().takeIf { str -> str.isNotBlank() && str.length >= 10 } }
+                val fromMF = reassembled?.let { String(it).trim() }
+                    ?.takeIf { it.isNotBlank() && it.length >= 10 }
+                fromMF ?: data.copyOfRange(1, data.size)
+                    .let { String(it).trim() }
+                    .takeIf { it.isNotBlank() && it.length >= 10 }
             }
 
             // Calibration ID (Mode 09 PID 04)
             val calId = readOptional {
                 val rawBytes = requireQueue().sendRaw("0904").getOrThrow()
                 val data = extractDataBytes(rawBytes)
-                String(data).trim().takeIf { it.isNotBlank() && it.length > 2 }
+                // Skip the PCI/record-number prefix byte
+                val calData = if (data.size > 1) data.copyOfRange(1, data.size) else data
+                String(calData).trim().takeIf { it.isNotBlank() && it.length > 2 }
             }
 
             // CVN (Mode 09 PID 06)
             val cvn = readOptional {
                 val rawBytes = requireQueue().sendRaw("0906").getOrThrow()
                 val data = extractDataBytes(rawBytes)
-                data.joinToString("") { String.format("%02X", it) }.takeIf { it.isNotBlank() }
+                // Skip the PCI/record-number prefix byte
+                val cvnData = if (data.size > 1) data.copyOfRange(1, data.size) else data
+                cvnData.joinToString("") { String.format("%02X", it) }.takeIf { it.isNotBlank() }
             }
 
             VehicleInfo(
@@ -210,7 +241,6 @@ class OBDRepositoryImpl(
      */
     private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray): OBDData? {
         val metadata = runBlocking { database.pidMetadataDao().getById(pidId, 0x01) }
-        val hex = rawBytesToHex(rawBytes)
 
         // Extract data bytes after the mode+PID response header
         // Format: "41 XX [data bytes]" or "42 XX [data bytes]"
@@ -228,33 +258,77 @@ class OBDRepositoryImpl(
     /**
      * Extract the actual data bytes from a raw ELM327 response.
      *
-     * ELM327 responses look like:
-     *   "41 0C 1B 88 \r\r>"  (with spaces)
-     *   or "41 0C 1B 88" (without spaces, after echo stripping)
+     * The ELM327 sends responses as ASCII hex text, potentially spread across
+     * multiple lines when status messages are emitted:
+     *   "SEARCHING...\r41 0C 1B 88 \r\r>"   (status + data on separate lines)
      *
-     * We need bytes after the mode byte (41) and PID byte (0C).
+     * With headers enabled (ATH1), the CAN ID and DLC precede the OBD response:
+     *   "18 DA F1 10 06 41 0C 1B 88 \r\r>"
+     *
+     * This method:
+     * 1. Splits the response into lines (ELM327 uses \r as line separator)
+     * 2. Tries each line as hex, skipping non-hex status messages (e.g. "SEARCHING...")
+     * 3. Finds the OBD mode response marker (0x41–0x4F) to skip any CAN headers
+     * 4. Skips the mode response byte + 1 subsequent byte (PID, sub-function, etc.)
+     * 5. Returns the remaining data payload
      */
     private fun extractDataBytes(rawBytes: ByteArray): ByteArray {
-        // Convert to clean hex string, skipping non-hex chars
-        val hexStr = rawBytesToHex(rawBytes).replace(" ", "")
+        val rawString = String(rawBytes, Charsets.US_ASCII)
 
-        // Response should start with mode response byte + PID
-        // Mode response = request mode + 0x40 (so request 01 → response 41)
-        // Minimum: 2 hex chars for mode, 2 hex chars for PID
-        if (hexStr.length < 4) return ByteArray(0)
+        // Process each line separately — ELM327 status messages like "SEARCHING..."
+        // or "BUS INIT: OK" appear on their own lines and are not valid hex.
+        // Only the actual data line contains the hex-encoded OBD response.
+        val lines = rawString.split("\r", "\n").filter { it.isNotBlank() }
 
-        // Skip the response mode byte and PID byte (first 4 hex chars = 2 bytes)
-        val dataHex = if (hexStr.length > 4) hexStr.substring(4) else ""
-        if (dataHex.isEmpty()) return ByteArray(0)
+        for (line in lines) {
+            val hexOnly = line.replace(">", "").replace(" ", "").trim()
+            if (hexOnly.length < 4) continue
 
-        // Convert remaining hex to bytes
-        return try {
-            ByteArray(dataHex.length / 2) { i ->
-                dataHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+            val decoded = try {
+                ByteUtils.fromHexString(hexOnly)
+            } catch (_: Exception) {
+                continue // Not valid hex (e.g. "SEARCHING...") — skip this line
             }
-        } catch (_: Exception) {
-            ByteArray(0)
+
+            val result = extractFromDecoded(decoded)
+            if (result != null) return result
         }
+
+        // Fallback: try the entire response as a single hex blob.
+        // This handles adapters that don't emit line separators.
+        val hexOnly = rawString
+            .replace(">", "").replace("\r", "").replace("\n", "")
+            .replace(" ", "").trim()
+
+        if (hexOnly.length >= 4) {
+            val decoded = try {
+                ByteUtils.fromHexString(hexOnly)
+            } catch (_: Exception) {
+                return ByteArray(0)
+            }
+            val result = extractFromDecoded(decoded)
+            if (result != null) return result
+        }
+
+        return ByteArray(0)
+    }
+
+    /**
+     * Find the OBD mode response marker in decoded bytes and return
+     * the data payload after mode + 1 subsequent byte, or null if
+     * no valid response marker is found.
+     */
+    private fun extractFromDecoded(decoded: ByteArray): ByteArray? {
+        for (i in decoded.indices) {
+            val b = decoded[i].toInt() and 0xFF
+            if (b in 0x41..0x4F) {
+                val dataStart = i + 2
+                if (dataStart < decoded.size) {
+                    return decoded.copyOfRange(dataStart, decoded.size)
+                }
+            }
+        }
+        return null
     }
 
     /**
@@ -331,5 +405,3 @@ class OBDRepositoryImpl(
     }
 }
 
-private fun rawBytesToHex(bytes: ByteArray): String =
-    bytes.joinToString(" ") { String.format("%02X", it) }
