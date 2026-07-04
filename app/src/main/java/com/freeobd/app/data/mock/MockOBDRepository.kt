@@ -36,6 +36,16 @@ class MockOBDRepository : OBDRepository {
         return Result.success(Unit)
     }
 
+    override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
+        delay(50)
+        return Result.success(
+            ProtocolInfo(
+                description = "ISO 15765-4 CAN (11 bit ID, 500 kbaud)",
+                number = "6"
+            )
+        )
+    }
+
     // ── Mode 01: Current Data ──────────────────────────────
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         delay(30)

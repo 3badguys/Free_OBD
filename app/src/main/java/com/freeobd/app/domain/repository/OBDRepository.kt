@@ -2,6 +2,7 @@ package com.freeobd.app.domain.repository
 
 import com.freeobd.app.domain.model.DTC
 import com.freeobd.app.domain.model.OBDData
+import com.freeobd.app.domain.model.ProtocolInfo
 import com.freeobd.app.domain.model.VehicleInfo
 import kotlinx.coroutines.flow.Flow
 
@@ -21,6 +22,14 @@ interface OBDRepository {
      * @param ecuAddress Optional ECU CAN address (e.g. "7DF").
      */
     suspend fun initELM327(protocol: String = "ATSP0", ecuAddress: String? = null): Result<Unit>
+
+    /**
+     * Query the actual OBD protocol negotiated between the adapter and vehicle.
+     * Should be called after [initELM327] has completed.
+     *
+     * Sends ATDPN (numeric) and ATDP (description) to the adapter.
+     */
+    suspend fun getProtocolInfo(): Result<ProtocolInfo>
 
     // --- Mode 01: Current Data ---
 

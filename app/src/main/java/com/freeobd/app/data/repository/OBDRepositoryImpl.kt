@@ -53,6 +53,35 @@ class OBDRepositoryImpl(
         }
     }
 
+    override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
+        return runCatching {
+            val queue = requireQueue()
+            val number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
+            val description = parseProtocolDescription(queue.sendRaw("ATDP").getOrThrow())
+            ProtocolInfo(description = description, number = number)
+        }
+    }
+
+    /** Parse ATDPN response — returns the protocol letter/number (e.g. "A0"). */
+    private fun parseProtocolNumber(raw: ByteArray): String {
+        val text = String(raw, Charsets.US_ASCII).trim()
+        // ATDPN returns the protocol character optionally followed by a digit.
+        // Strip echo and prompt, return the last meaningful line.
+        return text.lines().lastOrNull { it.isNotBlank() }
+            ?.replace(">", "")
+            ?.trim()
+            ?: "?"
+    }
+
+    /** Parse ATDP response — returns the human-readable description. */
+    private fun parseProtocolDescription(raw: ByteArray): String {
+        val text = String(raw, Charsets.US_ASCII).trim()
+        return text.lines()
+            .filter { it.isNotBlank() && !it.startsWith("ATDP") }
+            .joinToString(" ") { it.replace(">", "").trim() }
+            .ifBlank { "Unknown" }
+    }
+
     // ── Mode 01: Current Data ──────────────────────────────
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         return runCatching {

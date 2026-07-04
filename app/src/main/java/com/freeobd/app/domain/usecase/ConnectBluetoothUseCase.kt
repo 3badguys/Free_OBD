@@ -3,6 +3,7 @@ package com.freeobd.app.domain.usecase
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.ConnectionState
 import com.freeobd.app.domain.model.DeviceType
+import com.freeobd.app.domain.model.ProtocolInfo
 import com.freeobd.app.domain.repository.BluetoothRepository
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.flow.Flow
@@ -26,14 +27,15 @@ class ConnectBluetoothUseCase(
      * @param device The Bluetooth device to connect to.
      * @param protocol ELM327 protocol command (e.g. "ATSP0"). Use "ATSP0" for auto-detect.
      * @param ecuAddress Optional ECU CAN ID address (e.g. "7DF").
-     * @return Success or failure with a descriptive error message.
+     * @param transportType Transport to use — SPP (classic) or BLE.
+     * @return The negotiated protocol info on success, or failure.
      */
     suspend operator fun invoke(
         device: BluetoothDeviceInfo,
         protocol: String = "ATSP0",
         ecuAddress: String? = null,
         transportType: DeviceType = DeviceType.SPP
-    ): Result<Unit> {
+    ): Result<ProtocolInfo> {
         // Step 1: Establish Bluetooth connection
         bluetoothRepository.connect(device, protocol, ecuAddress, transportType).getOrElse { error ->
             return Result.failure(
@@ -42,16 +44,15 @@ class ConnectBluetoothUseCase(
         }
 
         // Step 2: Initialize ELM327 with the selected protocol and ECU address
-        return obdRepository.initELM327(protocol, ecuAddress).fold(
-            onSuccess = { Result.success(Unit) },
-            onFailure = { error ->
-                // If ELM327 init fails, disconnect Bluetooth
-                bluetoothRepository.disconnect()
-                Result.failure(
-                    ConnectionException("ELM327 initialization failed: ${error.message}", error)
-                )
-            }
-        )
+        obdRepository.initELM327(protocol, ecuAddress).getOrElse { error ->
+            bluetoothRepository.disconnect()
+            return Result.failure(
+                ConnectionException("ELM327 initialization failed: ${error.message}", error)
+            )
+        }
+
+        // Step 3: Query the actual negotiated protocol
+        return obdRepository.getProtocolInfo()
     }
 }
 

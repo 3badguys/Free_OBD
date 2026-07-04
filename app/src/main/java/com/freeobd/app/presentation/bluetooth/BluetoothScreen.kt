@@ -673,10 +673,17 @@ private fun ConnectedContent(
                         color = StatusGreen
                     )
                     Text(
-                        "${state.deviceName} · ${state.protocol}",
+                        state.deviceName,
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurface
                     )
+                    if (state.protocolInfo != null) {
+                        Text(
+                            "${state.protocolInfo.description} · ATDPN=${state.protocolInfo.number}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant
+                        )
+                    }
                 }
                 TextButton(onClick = onDisconnect) {
                     Text("Disconnect", color = StatusRed)

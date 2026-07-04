@@ -156,10 +156,12 @@ class BluetoothViewModel(
                     onSuccess = {
                         activeObdRepo.initELM327(protocol, ecuAddress).fold(
                             onSuccess = {
+                                val info = activeObdRepo.getProtocolInfo().getOrNull()
                                 _uiState.value = BluetoothUiState.Connected(
                                     deviceName = device.name ?: device.address,
                                     deviceAddress = device.address,
-                                    protocol = protocol
+                                    protocol = protocol,
+                                    protocolInfo = info
                                 )
                                 launch { activeObdRepo.discoverSupportedPIDs().onFailure { } }
                             },
@@ -181,11 +183,12 @@ class BluetoothViewModel(
                 )
             } else {
                 connectBluetoothUseCase(device, protocol, ecuAddress, transportType).fold(
-                    onSuccess = {
+                    onSuccess = { protocolInfo ->
                         _uiState.value = BluetoothUiState.Connected(
                             deviceName = device.name ?: device.address,
                             deviceAddress = device.address,
-                            protocol = protocol
+                            protocol = protocol,
+                            protocolInfo = protocolInfo
                         )
                         launch {
                             discoverPIDsUseCase().onFailure { error ->

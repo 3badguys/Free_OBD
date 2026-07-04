@@ -2,6 +2,7 @@ package com.freeobd.app.presentation.bluetooth
 
 import com.freeobd.app.domain.model.BluetoothDeviceInfo
 import com.freeobd.app.domain.model.DeviceType
+import com.freeobd.app.domain.model.ProtocolInfo
 
 /**
  * Sealed class hierarchy for the Bluetooth connection screen UI state.
@@ -33,7 +34,8 @@ sealed interface BluetoothUiState {
     data class Connected(
         val deviceName: String,
         val deviceAddress: String,
-        val protocol: String = "Auto-detect"
+        val protocol: String = "Auto-detect",
+        val protocolInfo: ProtocolInfo? = null
     ) : BluetoothUiState
 
     /** An error occurred during scanning or connection. */
