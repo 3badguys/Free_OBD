@@ -147,6 +147,11 @@ class BluetoothViewModel(
         ecuAddress: String?,
         transportType: DeviceType
     ) {
+        // Cancel ongoing scan so stray DevicesFound emissions don't
+        // overwrite the Connecting / Connected state mid-connection.
+        scanCollectorJob?.cancel()
+        scanLaunchJob?.cancel()
+
         val repo = activeBtRepo
         viewModelScope.launch {
             _uiState.value = BluetoothUiState.Connecting(device)
@@ -210,7 +215,8 @@ class BluetoothViewModel(
     private fun disconnect() {
         viewModelScope.launch {
             activeBtRepo.disconnect()
-            _uiState.value = BluetoothUiState.Idle
+            // Auto-start a fresh scan so the user sees devices immediately
+            startScan()
         }
     }
 
