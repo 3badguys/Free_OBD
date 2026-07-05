@@ -1,5 +1,6 @@
 package com.freeobd.app.data.mock
 
+import com.freeobd.app.data.remote.DebugLogger
 import com.freeobd.app.domain.model.*
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.delay
@@ -32,22 +33,39 @@ class MockOBDRepository : OBDRepository {
 
     // ── Initialization ─────────────────────────────────────
     override suspend fun initELM327(protocol: String, ecuAddress: String?, cryptoKey: String?): Result<Unit> {
-        delay(300) // Simulate init sequence
+        DebugLogger.tx("ATZ"); delay(50); DebugLogger.rx("ELM327 v2.1")
+        DebugLogger.tx("ATE0"); delay(50); DebugLogger.rx("OK")
+        DebugLogger.tx("ATL0"); delay(50); DebugLogger.rx("OK")
+        DebugLogger.tx("ATRV"); delay(50); DebugLogger.rx("13.8V")
+        DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
+        DebugLogger.tx("AT+VERSION"); delay(50); DebugLogger.rx("ELM327 v2.1")
+        if (!cryptoKey.isNullOrBlank()) {
+            DebugLogger.tx("AT+SETCRYPTF $cryptoKey"); delay(50); DebugLogger.rx("OK")
+        }
+        DebugLogger.tx(protocol); delay(50); DebugLogger.rx("OK")
         return Result.success(Unit)
     }
 
     override suspend fun readVoltage(): Result<Double> {
-        delay(50)
+        DebugLogger.tx("ATRV"); delay(50); DebugLogger.rx("13.8V")
         return Result.success(13.8)
     }
 
     override suspend fun readAdapterInfo(): Result<String> {
-        delay(50)
+        DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
         return Result.success("ELM327 v2.1 (demo)")
     }
 
-    override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
+    override suspend fun sendRawCommand(command: String): Result<String> {
+        DebugLogger.tx(command)
         delay(50)
+        DebugLogger.rx("Manual TX not supported in demo mode")
+        return Result.success("Manual TX not supported in demo mode")
+    }
+
+    override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
+        DebugLogger.tx("ATDPN"); delay(50); DebugLogger.rx("6")
+        DebugLogger.tx("ATDP"); delay(50); DebugLogger.rx("ISO 15765-4 CAN (11 bit ID, 500 kbaud)")
         return Result.success(
             ProtocolInfo(
                 description = "ISO 15765-4 CAN (11 bit ID, 500 kbaud)",
@@ -58,8 +76,12 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 01: Current Data ──────────────────────────────
     override suspend fun readPID(pidId: Int): Result<OBDData> {
+        val pidHex = String.format("%02X", pidId)
+        DebugLogger.tx("01$pidHex")
         delay(30)
-        return Result.success(generatePIDValue(pidId))
+        val data = generatePIDValue(pidId)
+        DebugLogger.rx("41 $pidHex [${mockDataHex(data)}]")
+        return Result.success(data)
     }
 
     override suspend fun readPIDs(pidIds: List<Int>): Map<Int, OBDData> {
@@ -102,8 +124,9 @@ class MockOBDRepository : OBDRepository {
 
     // ── PID Discovery ──────────────────────────────────────
     override suspend fun discoverSupportedPIDs(mode: Int): Result<Set<Int>> {
-        delay(200)
-        // Return a realistic set of supported PIDs for a typical vehicle
+        val modeHex = String.format("%02X", mode)
+        DebugLogger.tx("${modeHex}00"); delay(100); DebugLogger.rx("BE 1F A8 13")
+        DebugLogger.tx("${modeHex}20"); delay(100); DebugLogger.rx("80 00 00 01")
         return Result.success(
             setOf(
                 // PID 0x00 bitmap will indicate support for 0x01-0x20
@@ -124,7 +147,7 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 03: Stored DTCs ───────────────────────────────
     override suspend fun readStoredDTCs(): Result<List<DTC>> {
-        delay(150)
+        DebugLogger.tx("03"); delay(150); DebugLogger.rx("43 02 01 02 03 04")
         return Result.success(
             listOf(
                 DTC(
@@ -179,7 +202,9 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 09: Vehicle Information ───────────────────────
     override suspend fun readVehicleInfo(): Result<VehicleInfo> {
-        delay(300) // VIN read takes longer
+        DebugLogger.tx("0902"); delay(100); DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
+        DebugLogger.tx("0904"); delay(100); DebugLogger.rx("49 04 01 43 41 4C 2D 32 30 32 34")
+        DebugLogger.tx("0906"); delay(100); DebugLogger.rx("49 06 01 A1 B2 C3 D4")
         return Result.success(
             VehicleInfo(
                 vin = "1HGBH41JXMN109186",
@@ -203,6 +228,13 @@ class MockOBDRepository : OBDRepository {
     }
 
     // ── PID value generation ───────────────────────────────
+
+    private fun mockDataHex(data: OBDData): String = when (data) {
+        is OBDData.Numeric -> String.format("%02X %02X",
+            data.value.toInt() shr 8 and 0xFF,
+            data.value.toInt() and 0xFF)
+        else -> "??"
+    }
 
     private fun generatePIDValue(pidId: Int): OBDData {
         return when (pidId) {

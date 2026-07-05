@@ -84,6 +84,12 @@ sealed interface BluetoothEvent {
     /** Set the crypto key for Chinese clone adapters (AT+SETCRYPTF). */
     data class SetCryptoKey(val key: String) : BluetoothEvent
 
+    /** Enable debug logging for the Debug Console. */
+    data object EnableDebugLogging : BluetoothEvent
+
+    /** Disable debug logging for the Debug Console. */
+    data object DisableDebugLogging : BluetoothEvent
+
     /** Toggle demo mode on/off. */
     data object ToggleDemoMode : BluetoothEvent
 }

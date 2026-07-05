@@ -70,6 +70,9 @@ class ELM327Initializer(
         // Step 5: Read firmware version — useful for debugging adapter issues.
         steps.add(InitStep("ATI (firmware info)", "ATI", 200L, critical = false))
 
+        // Step 5b: Read extended version info (debug console only, not displayed in UI).
+        steps.add(InitStep("AT+VERSION", "AT+VERSION", 200L, critical = false))
+
         // Step 6: Set crypto key BEFORE protocol selection.
         // STM32-based ELM327 clones need this handshake before they will
         // relay OBD data. The key is user-configurable in Advanced options.

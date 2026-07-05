@@ -41,6 +41,7 @@ fun BluetoothScreen(
     onNavigateToDashboard: () -> Unit,
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
+    onNavigateToDebugConsole: () -> Unit = {},
     viewModel: BluetoothViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -92,6 +93,7 @@ fun BluetoothScreen(
     var selectedTransport by remember { mutableStateOf("SPP") }
     var ecuAddress by remember { mutableStateOf("") }
     var cryptoKey by remember { mutableStateOf(BluetoothViewModel.DEFAULT_CRYPTO_KEY) }
+    val debugLoggingEnabled by com.freeobd.app.data.remote.DebugLogger.enabledFlow.collectAsState()
 
     Scaffold(
         topBar = {
@@ -193,6 +195,7 @@ fun BluetoothScreen(
                         selectedTransport = selectedTransport,
                         ecuAddress = ecuAddress,
                         cryptoKey = cryptoKey,
+                        debugLoggingEnabled = debugLoggingEnabled,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
                         onStartScan = { requestPermissionsAndScan() },
@@ -222,7 +225,14 @@ fun BluetoothScreen(
                             if (open) showProtocolPicker = false
                         },
                         onEcuAddressChanged = { ecuAddress = it },
-                        onCryptoKeyChanged = { cryptoKey = it }
+                        onCryptoKeyChanged = { cryptoKey = it },
+                        onDebugLoggingToggled = { enabled ->
+                            if (enabled) {
+                                viewModel.onEvent(BluetoothEvent.EnableDebugLogging)
+                            } else {
+                                viewModel.onEvent(BluetoothEvent.DisableDebugLogging)
+                            }
+                        }
                     )
                 }
 
@@ -233,9 +243,11 @@ fun BluetoothScreen(
                 is BluetoothUiState.Connected -> {
                     ConnectedContent(
                         state = state,
+                        debugLoggingEnabled = debugLoggingEnabled,
                         onNavigateToDashboard = onNavigateToDashboard,
                         onNavigateToDTC = onNavigateToDTC,
                         onNavigateToVehicleInfo = onNavigateToVehicleInfo,
+                        onNavigateToDebugConsole = onNavigateToDebugConsole,
                         onDisconnect = { viewModel.onEvent(BluetoothEvent.Disconnect) }
                     )
                 }
@@ -320,6 +332,7 @@ private fun DeviceListContent(
     selectedTransport: String,
     ecuAddress: String,
     cryptoKey: String,
+    debugLoggingEnabled: Boolean,
     showProtocolPicker: Boolean,
     showAdvancedOptions: Boolean,
     onStartScan: () -> Unit,
@@ -330,7 +343,8 @@ private fun DeviceListContent(
     onToggleProtocolPicker: (Boolean) -> Unit,
     onToggleAdvanced: (Boolean) -> Unit,
     onEcuAddressChanged: (String) -> Unit,
-    onCryptoKeyChanged: (String) -> Unit
+    onCryptoKeyChanged: (String) -> Unit,
+    onDebugLoggingToggled: (Boolean) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Scan controls
@@ -429,8 +443,10 @@ private fun DeviceListContent(
             AdvancedOptions(
                 ecuAddress = ecuAddress,
                 cryptoKey = cryptoKey,
+                debugLoggingEnabled = debugLoggingEnabled,
                 onEcuAddressChanged = onEcuAddressChanged,
-                onCryptoKeyChanged = onCryptoKeyChanged
+                onCryptoKeyChanged = onCryptoKeyChanged,
+                onDebugLoggingToggled = onDebugLoggingToggled
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -598,8 +614,10 @@ private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
 private fun AdvancedOptions(
     ecuAddress: String,
     cryptoKey: String,
+    debugLoggingEnabled: Boolean,
     onEcuAddressChanged: (String) -> Unit,
-    onCryptoKeyChanged: (String) -> Unit
+    onCryptoKeyChanged: (String) -> Unit,
+    onDebugLoggingToggled: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -659,6 +677,33 @@ private fun AdvancedOptions(
                     cursorColor = Primary
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Debug Logging Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Enable Debug Logging",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OnSurface
+                    )
+                    Text(
+                        "Record all AT/OBD commands and responses",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = debugLoggingEnabled,
+                    onCheckedChange = onDebugLoggingToggled,
+                    colors = SwitchDefaults.colors(checkedTrackColor = Primary)
+                )
+            }
         }
     }
 }
@@ -687,9 +732,11 @@ private fun ConnectingContent(device: BluetoothDeviceInfo) {
 @Composable
 private fun ConnectedContent(
     state: BluetoothUiState.Connected,
+    debugLoggingEnabled: Boolean = false,
     onNavigateToDashboard: () -> Unit,
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
+    onNavigateToDebugConsole: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     val voltage = state.voltage
@@ -814,6 +861,17 @@ private fun ConnectedContent(
             icon = Icons.Default.DirectionsCar,
             onClick = onNavigateToVehicleInfo
         )
+
+        if (debugLoggingEnabled) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            FeatureCard(
+                title = "Debug Console",
+                description = "View raw ELM327 command and response log",
+                icon = Icons.Default.BugReport,
+                onClick = onNavigateToDebugConsole
+            )
+        }
     }
 }
 

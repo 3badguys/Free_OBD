@@ -71,6 +71,8 @@ class BluetoothViewModel(
             is BluetoothEvent.SelectTransport -> { selectedTransportType = event.transportType }
             is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address.ifBlank { null } }
             is BluetoothEvent.SetCryptoKey -> { cryptoKey = event.key.ifBlank { DEFAULT_CRYPTO_KEY } }
+            is BluetoothEvent.EnableDebugLogging -> { com.freeobd.app.data.remote.DebugLogger.setEnabled(true) }
+            is BluetoothEvent.DisableDebugLogging -> { com.freeobd.app.data.remote.DebugLogger.setEnabled(false) }
             is BluetoothEvent.ToggleDemoMode -> toggleDemoMode()
         }
     }
@@ -157,6 +159,9 @@ class BluetoothViewModel(
         // overwrite the Connecting / Connected state mid-connection.
         scanCollectorJob?.cancel()
         scanLaunchJob?.cancel()
+
+        // Clear previous session's debug logs — start fresh per connection
+        com.freeobd.app.data.remote.DebugLogger.clear()
 
         val repo = activeBtRepo
         viewModelScope.launch {

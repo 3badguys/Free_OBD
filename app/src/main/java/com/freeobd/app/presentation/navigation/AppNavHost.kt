@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.freeobd.app.presentation.bluetooth.BluetoothScreen
 import com.freeobd.app.presentation.dashboard.DashboardScreen
+import com.freeobd.app.presentation.debug.DebugConsoleScreen
 import com.freeobd.app.presentation.dtc.DtcScreen
 import com.freeobd.app.presentation.vehicle.VehicleScreen
 import org.koin.androidx.compose.koinViewModel
@@ -43,6 +44,11 @@ fun AppNavHost(
                     navController.navigate(NavRoutes.VehicleInfo.route) {
                         launchSingleTop = true
                     }
+                },
+                onNavigateToDebugConsole = {
+                    navController.navigate(NavRoutes.DebugConsole.route) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -64,6 +70,13 @@ fun AppNavHost(
         // Vehicle Information
         composable(NavRoutes.VehicleInfo.route) {
             VehicleScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Debug Console
+        composable(NavRoutes.DebugConsole.route) {
+            DebugConsoleScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

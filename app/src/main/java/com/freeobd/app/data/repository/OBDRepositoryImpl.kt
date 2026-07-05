@@ -75,6 +75,21 @@ class OBDRepositoryImpl(
         }
     }
 
+    override suspend fun sendRawCommand(command: String): Result<String> {
+        DebugLogger.tx(command)
+        return runCatching {
+            val rawBytes = requireQueue().sendRaw(command, forceLog = true).getOrThrow()
+            val text = String(rawBytes, Charsets.US_ASCII)
+                .replace(">", "")
+                .replace("\r", "\n")
+                .trim()
+            DebugLogger.rx(text)
+            text
+        }.onFailure { e ->
+            DebugLogger.error("$command: ${e.message ?: "unknown error"}")
+        }
+    }
+
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
         return runCatching {
             val queue = requireQueue()

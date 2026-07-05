@@ -49,6 +49,12 @@ interface OBDRepository {
      */
     suspend fun readAdapterInfo(): Result<String>
 
+    /**
+     * Send a raw AT or OBD command string and return the response text.
+     * Used by the debug console for manual command input.
+     */
+    suspend fun sendRawCommand(command: String): Result<String>
+
     // --- Mode 01: Current Data ---
 
     /**

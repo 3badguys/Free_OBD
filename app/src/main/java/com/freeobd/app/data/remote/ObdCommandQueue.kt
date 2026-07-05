@@ -80,15 +80,21 @@ class ObdCommandQueue(
      * @param rawCommand The command string without '\\r' suffix (e.g. "010C").
      * @return Raw response bytes (with echo and prompt stripped).
      */
-    suspend fun sendRaw(rawCommand: String): Result<ByteArray> =
+    suspend fun sendRaw(rawCommand: String, forceLog: Boolean = false): Result<ByteArray> =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 runCatching {
                     val cmd = if (rawCommand.endsWith("\r")) rawCommand else "$rawCommand\r"
+                    // forceLog=false: normal auto commands, logged only when debug is enabled
+                    // forceLog=true: caller (sendRawCommand) handles logging, skip queue logging
+                    val shouldLog = !forceLog && DebugLogger.enabled
+
+                    if (shouldLog) DebugLogger.tx(rawCommand)
+
                     transport.outputStream.write(cmd.toByteArray(Charsets.US_ASCII))
                     transport.outputStream.flush()
 
-                    delay(50) // Minimal delay for adapter to start responding
+                    delay(50)
 
                     val response = withTimeout(commandTimeout()) {
                         readResponse()
@@ -97,9 +103,17 @@ class ObdCommandQueue(
                     if (isFirstCommand) isFirstCommand = false
                     delay(interCommandDelayMs)
 
-                    // If echo is on, strip the echoed command from the response
                     val result = stripEcho(rawCommand, response)
+
+                    if (shouldLog) {
+                        val rxText = String(result, Charsets.US_ASCII)
+                            .replace("\r", "").replace("\n", " ").trim()
+                        DebugLogger.rx(rxText)
+                    }
+
                     result
+                }.onFailure { e ->
+                    DebugLogger.error("${rawCommand}: ${e.message ?: "unknown error"}")
                 }
             }
         }

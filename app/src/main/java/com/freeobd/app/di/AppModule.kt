@@ -9,6 +9,7 @@ import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.*
 import com.freeobd.app.presentation.bluetooth.BluetoothViewModel
 import com.freeobd.app.presentation.dashboard.DashboardViewModel
+import com.freeobd.app.presentation.debug.DebugViewModel
 import com.freeobd.app.presentation.dtc.DtcViewModel
 import com.freeobd.app.presentation.vehicle.VehicleViewModel
 import org.koin.android.ext.koin.androidContext
@@ -67,6 +68,7 @@ val appModule = module {
 
     viewModel { BluetoothViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get(), get()) }
+    viewModel { DebugViewModel(get()) }
     viewModel { DtcViewModel(get(), get()) }
     viewModel { VehicleViewModel(get(), get()) }
 }

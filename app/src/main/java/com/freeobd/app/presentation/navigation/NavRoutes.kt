@@ -17,4 +17,7 @@ sealed class NavRoutes(val route: String) {
 
     /** Vehicle information (VIN, calibration IDs, CVN). */
     data object VehicleInfo : NavRoutes("vehicle_info")
+
+    /** Debug console — view raw ELM327 command/response log. */
+    data object DebugConsole : NavRoutes("debug_console")
 }
