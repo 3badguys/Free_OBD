@@ -81,7 +81,7 @@ sealed interface BluetoothEvent {
     /** Set a specific ECU CAN address. */
     data class SetEcuAddress(val address: String) : BluetoothEvent
 
-    /** Set the crypto key for Chinese clone adapters (AT+SETCRYPTF). */
+    /** Set the crypto key for Chinese clone adapters (AT+SETCRYPT). */
     data class SetCryptoKey(val key: String) : BluetoothEvent
 
     /** Enable debug logging for the Debug Console. */

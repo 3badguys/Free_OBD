@@ -10,7 +10,7 @@ import kotlinx.coroutines.delay
  *  3. ATL0           — Disable line feeds
  *  4. ATRV           — Voltage check (non-critical)
  *  5. ATI            — Firmware version (non-critical, useful for debugging)
- *  6. AT+SETCRYPTF   — Crypto key for STM32 clone adapters (optional, non-critical)
+ *  6. AT+SETCRYPT   — Crypto key for STM32 clone adapters (optional, non-critical)
  *  7. ATSPx          — Protocol selection
  *  8. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
  *  9. ATSH           — ECU header address (optional)
@@ -38,7 +38,7 @@ class ELM327Initializer(
                         )
                     )
                 }
-                // Non-critical step failure (e.g. ATRV, AT+SETCRYPTF
+                // Non-critical step failure (e.g. ATRV, AT+SETCRYPT
                 // on adapters that don't support it) — skip and continue.
             }
             delay(step.postDelayMs)
@@ -79,8 +79,8 @@ class ELM327Initializer(
         if (!cryptoKey.isNullOrBlank()) {
             steps.add(
                 InitStep(
-                    "AT+SETCRYPTF (crypto key)",
-                    "AT+SETCRYPTF $cryptoKey",
+                    "AT+SETCRYPT (crypto key)",
+                    "AT+SETCRYPT$cryptoKey",
                     300L,
                     critical = false
                 )

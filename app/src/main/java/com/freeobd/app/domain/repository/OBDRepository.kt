@@ -19,7 +19,7 @@ interface OBDRepository {
      *
      * @param protocol The protocol selection command (e.g. "ATSP0" for auto-detect).
      * @param ecuAddress Optional ECU address (e.g. "7DF" for CAN, "33" for KWP).
-     * @param cryptoKey Optional crypto key for Chinese clone adapters (AT+SETCRYPTF).
+     * @param cryptoKey Optional crypto key for Chinese clone adapters (AT+SETCRYPT).
      */
     suspend fun initELM327(
         protocol: String = "ATSP0",

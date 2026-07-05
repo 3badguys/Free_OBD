@@ -40,7 +40,7 @@ class MockOBDRepository : OBDRepository {
         DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
         DebugLogger.tx("AT+VERSION"); delay(50); DebugLogger.rx("ELM327 v2.1")
         if (!cryptoKey.isNullOrBlank()) {
-            DebugLogger.tx("AT+SETCRYPTF $cryptoKey"); delay(50); DebugLogger.rx("OK")
+            DebugLogger.tx("AT+SETCRYPT$cryptoKey"); delay(50); DebugLogger.rx("OK")
         }
         DebugLogger.tx(protocol); delay(50); DebugLogger.rx("OK")
         return Result.success(Unit)

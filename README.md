@@ -24,7 +24,7 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | **蓝牙设备扫描** | 同时扫描经典蓝牙（SPP）和低功耗蓝牙（BLE）OBD 适配器 |
 | **协议自动/手动选择** | 支持 ATSP0-ATSP9 共 10 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW |
 | **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init，K 线自动跳过 ATH1 |
-| **加密密钥 (AT+SETCRYPTF)** | 国产 STM32 芯片 ELM327 克隆适配器专用，默认 CBF7E7C，可在 Advanced 中配置 |
+| **加密密钥 (AT+SETCRYPT)** | 国产 STM32 芯片 ELM327 克隆适配器专用，默认 CBF7E7C，可在 Advanced 中配置 |
 | **电压检测** | ATRV 读取电压，低电压时弹窗警告 |
 | **适配器固件信息** | ATI 版本号显示在 Connected 卡片上 |
 | **ECU 地址配置** | 支持广播地址（0x7DF）和特定 ECU 地址 |
@@ -73,7 +73,7 @@ app/src/main/java/com/freeobd/app/
 │   │   ├── SppTransport.kt     # 经典蓝牙 RFCOMM 实现
 │   │   ├── BleTransport.kt     # BLE GATT 实现（骨架）
 │   │   ├── ObdCommandQueue.kt  # 原始 ELM327 命令队列 + Mutex 串行化
-│   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→ATRV→ATI→AT+VERSION→AT+SETCRYPTF→ATSP→ATH1→ATSH
+│   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→ATRV→ATI→AT+VERSION→AT+SETCRYPT→ATSP→ATH1→ATSH
 │   │   ├── PIDBitmapParser.kt      # PID 位图解析（SAE J1979）
 │   │   ├── DTCParser.kt           # DTC 故障码解析（SAE J2012）
 │   │   ├── MultiFrameHandler.kt   # ISO 15765-2 多帧拼接（VIN 等）
@@ -205,7 +205,7 @@ cd Free_OBD
 4. ATRV             电压检测（非关键步骤）
 5. ATI              固件版本（非关键）
 6. AT+VERSION       扩展版本信息（仅记录到调试控制台，非关键）
-7. AT+SETCRYPTF     加密密钥，国产 STM32 克隆适配器专用（可选，非关键）
+7. AT+SETCRYPT     加密密钥，国产 STM32 克隆适配器专用（可选，非关键）
 8. ATSPx            协议选择（ATSP0 = 自动检测）
 9. ATH1             CAN 头（仅 CAN 协议发送，K 线 ATSP3/4/5 跳过）
 10. ATSH            ECU 头地址（可选，配置了才发）

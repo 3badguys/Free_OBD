@@ -654,7 +654,7 @@ private fun AdvancedOptions(
 
             // Crypto Key
             Text(
-                "Crypto Key (AT+SETCRYPTF)",
+                "Crypto Key (AT+SETCRYPT)",
                 style = MaterialTheme.typography.labelMedium,
                 color = OnSurface
             )
