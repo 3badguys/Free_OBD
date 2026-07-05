@@ -5,38 +5,41 @@ import kotlinx.coroutines.delay
 /**
  * Executes the ELM327 initialization sequence using raw AT commands.
  *
- * ATZ is skipped because many ELM327 clones reboot their entire adapter
- * (including the Bluetooth chip) on reset, breaking the connection.
- *
- * CAN bus protocol init:
- *   1. ATE0 — Disable command echo
- *   2. ATL0 — Disable line feeds
- *   3. ATSPx — Protocol selection
- *   4. ATH1 — Enable CAN headers (CAN only, skipped for K-line ATSP3/4/5)
- *   5. ATSH — Set CAN/K-line header address (optional)
- *
- * Each step has an appropriate post-command delay.
+ *  1. ATZ            — Full reset (clears previous session state)
+ *  2. ATE0           — Disable command echo
+ *  3. ATL0           — Disable line feeds
+ *  4. ATRV           — Voltage check (non-critical)
+ *  5. ATI            — Firmware version (non-critical, useful for debugging)
+ *  6. AT+SETCRYPTF   — Crypto key for STM32 clone adapters (optional, non-critical)
+ *  7. ATSPx          — Protocol selection
+ *  8. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
+ *  9. ATSH           — ECU header address (optional)
  */
 class ELM327Initializer(
     private val commandQueue: ObdCommandQueue
 ) {
     suspend fun initialize(
         protocol: String = "ATSP0",
-        ecuAddress: String? = null
+        ecuAddress: String? = null,
+        cryptoKey: String? = null
     ): Result<Unit> {
-        val steps = buildInitSteps(protocol, ecuAddress)
+        val steps = buildInitSteps(protocol, ecuAddress, cryptoKey)
 
         steps.forEachIndexed { index, step ->
             val result = commandQueue.sendRaw(step.command)
             if (result.isFailure) {
                 val error = result.exceptionOrNull()
-                return Result.failure(
-                    ELM327InitException(
-                        "ELM327 init failed at step ${index + 1}/${steps.size} " +
-                            "(${step.description}): ${error?.message ?: "unknown error"}",
-                        error
+                if (step.critical) {
+                    return Result.failure(
+                        ELM327InitException(
+                            "ELM327 init failed at step ${index + 1}/${steps.size} " +
+                                "(${step.description}): ${error?.message ?: "unknown error"}",
+                            error
+                        )
                     )
-                )
+                }
+                // Non-critical step failure (e.g. ATRV, AT+SETCRYPTF
+                // on adapters that don't support it) — skip and continue.
             }
             delay(step.postDelayMs)
         }
@@ -45,21 +48,43 @@ class ELM327Initializer(
 
     private fun buildInitSteps(
         protocol: String,
-        ecuAddress: String?
+        ecuAddress: String?,
+        cryptoKey: String?
     ): List<InitStep> {
         val steps = mutableListOf<InitStep>()
+        val proto = if (protocol in VALID_PROTOCOLS) protocol else "ATSP0"
 
-        // Step 0: Wake up — send a bare CR to trigger the adapter's prompt.
-        steps.add(InitStep("wake-up", "\r", 200L))
+        // Step 1: ATZ — full reset to clear previous session state.
+        steps.add(InitStep("ATZ (reset)", "ATZ", 500L))
 
-        // Step 1: Disable echo
+        // Step 2: Disable echo
         steps.add(InitStep("ATE0 (disable echo)", "ATE0", 300L))
 
-        // Step 2: Disable line feed
+        // Step 3: Disable line feed
         steps.add(InitStep("ATL0 (disable line feed)", "ATL0", 200L))
 
-        // Step 3: Select protocol
-        val proto = if (protocol in VALID_PROTOCOLS) protocol else "ATSP0"
+        // Step 4: Read voltage — quick check that the OBD port has power.
+        // Non-critical; failure here doesn't abort init.
+        steps.add(InitStep("ATRV (voltage check)", "ATRV", 200L, critical = false))
+
+        // Step 5: Read firmware version — useful for debugging adapter issues.
+        steps.add(InitStep("ATI (firmware info)", "ATI", 200L, critical = false))
+
+        // Step 6: Set crypto key BEFORE protocol selection.
+        // STM32-based ELM327 clones need this handshake before they will
+        // relay OBD data. The key is user-configurable in Advanced options.
+        if (!cryptoKey.isNullOrBlank()) {
+            steps.add(
+                InitStep(
+                    "AT+SETCRYPTF (crypto key)",
+                    "AT+SETCRYPTF $cryptoKey",
+                    300L,
+                    critical = false
+                )
+            )
+        }
+
+        // Step 7: Select protocol
         steps.add(
             InitStep(
                 "$proto (protocol select)",
@@ -68,13 +93,12 @@ class ELM327Initializer(
             )
         )
 
-        // Step 4: Enable CAN headers (CAN-only; skipped for K-line as K-line
-        // doesn't have CAN-style headers and the adapter handles init automatically)
+        // Step 8: Enable CAN headers (CAN-only; skipped for K-line)
         if (proto !in KLINE_PROTOCOLS) {
             steps.add(InitStep("ATH1 (enable CAN headers)", "ATH1", 200L))
         }
 
-        // Step 5 (optional): Set ECU address
+        // Step 9 (optional): Set ECU header address
         if (!ecuAddress.isNullOrBlank()) {
             steps.add(InitStep("ATSH $ecuAddress", "ATSH$ecuAddress", 200L))
         }
@@ -85,7 +109,8 @@ class ELM327Initializer(
     private data class InitStep(
         val description: String,
         val command: String,
-        val postDelayMs: Long
+        val postDelayMs: Long,
+        val critical: Boolean = true
     )
 
     companion object {

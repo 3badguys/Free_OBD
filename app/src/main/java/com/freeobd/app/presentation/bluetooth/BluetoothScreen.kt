@@ -85,12 +85,13 @@ fun BluetoothScreen(
         }
     }
 
-    // Protocol selection dropdown state
+    // Protocol & Advanced config — accordion style (only one open at a time)
     var showProtocolPicker by remember { mutableStateOf(false) }
     var showAdvancedOptions by remember { mutableStateOf(false) }
     var selectedProtocol by remember { mutableStateOf("ATSP0 (Auto)") }
     var selectedTransport by remember { mutableStateOf("SPP") }
     var ecuAddress by remember { mutableStateOf("") }
+    var cryptoKey by remember { mutableStateOf(BluetoothViewModel.DEFAULT_CRYPTO_KEY) }
 
     Scaffold(
         topBar = {
@@ -191,6 +192,7 @@ fun BluetoothScreen(
                         selectedProtocol = selectedProtocol,
                         selectedTransport = selectedTransport,
                         ecuAddress = ecuAddress,
+                        cryptoKey = cryptoKey,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
                         onStartScan = { requestPermissionsAndScan() },
@@ -201,7 +203,8 @@ fun BluetoothScreen(
                                     device = device,
                                     protocol = protocolToAtCommand(selectedProtocol),
                                     ecuAddress = ecuAddress.ifBlank { null },
-                                    transportType = if (selectedTransport == "BLE") DeviceType.BLE else DeviceType.SPP
+                                    transportType = if (selectedTransport == "BLE") DeviceType.BLE else DeviceType.SPP,
+                                    cryptoKey = cryptoKey.ifBlank { null }
                                 )
                             )
                         },
@@ -210,9 +213,16 @@ fun BluetoothScreen(
                             showProtocolPicker = false
                         },
                         onTransportSelected = { selectedTransport = it },
-                        onToggleProtocolPicker = { showProtocolPicker = it },
-                        onToggleAdvanced = { showAdvancedOptions = it },
-                        onEcuAddressChanged = { ecuAddress = it }
+                        onToggleProtocolPicker = { open ->
+                            showProtocolPicker = open
+                            if (open) showAdvancedOptions = false
+                        },
+                        onToggleAdvanced = { open ->
+                            showAdvancedOptions = open
+                            if (open) showProtocolPicker = false
+                        },
+                        onEcuAddressChanged = { ecuAddress = it },
+                        onCryptoKeyChanged = { cryptoKey = it }
                     )
                 }
 
@@ -309,6 +319,7 @@ private fun DeviceListContent(
     selectedProtocol: String,
     selectedTransport: String,
     ecuAddress: String,
+    cryptoKey: String,
     showProtocolPicker: Boolean,
     showAdvancedOptions: Boolean,
     onStartScan: () -> Unit,
@@ -318,7 +329,8 @@ private fun DeviceListContent(
     onTransportSelected: (String) -> Unit,
     onToggleProtocolPicker: (Boolean) -> Unit,
     onToggleAdvanced: (Boolean) -> Unit,
-    onEcuAddressChanged: (String) -> Unit
+    onEcuAddressChanged: (String) -> Unit,
+    onCryptoKeyChanged: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Scan controls
@@ -416,7 +428,9 @@ private fun DeviceListContent(
         if (showAdvancedOptions) {
             AdvancedOptions(
                 ecuAddress = ecuAddress,
-                onEcuAddressChanged = onEcuAddressChanged
+                cryptoKey = cryptoKey,
+                onEcuAddressChanged = onEcuAddressChanged,
+                onCryptoKeyChanged = onCryptoKeyChanged
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -583,21 +597,24 @@ private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
 @Composable
 private fun AdvancedOptions(
     ecuAddress: String,
-    onEcuAddressChanged: (String) -> Unit
+    cryptoKey: String,
+    onEcuAddressChanged: (String) -> Unit,
+    onCryptoKeyChanged: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SurfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            // ECU Address
             Text(
-                "ECU Address (CAN ID)",
+                "ECU Address",
                 style = MaterialTheme.typography.labelMedium,
                 color = OnSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "Default: 0x7DF (broadcast). Advanced users only.",
+                "CAN header address. Default: 0x7DF (broadcast).",
                 style = MaterialTheme.typography.labelSmall,
                 color = OnSurfaceVariant
             )
@@ -606,6 +623,34 @@ private fun AdvancedOptions(
                 value = ecuAddress,
                 onValueChange = onEcuAddressChanged,
                 placeholder = { Text("7DF") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = OnSurfaceVariant,
+                    cursorColor = Primary
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Crypto Key
+            Text(
+                "Crypto Key (AT+SETCRYPTF)",
+                style = MaterialTheme.typography.labelMedium,
+                color = OnSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "For STM32-based ELM327 clones. Leave blank to skip.",
+                style = MaterialTheme.typography.labelSmall,
+                color = OnSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = cryptoKey,
+                onValueChange = onCryptoKeyChanged,
+                placeholder = { Text(BluetoothViewModel.DEFAULT_CRYPTO_KEY) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -647,11 +692,41 @@ private fun ConnectedContent(
     onNavigateToVehicleInfo: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    val voltage = state.voltage
+    val lowVoltage = voltage != null && voltage < 10.0
+    var showVoltageWarning by remember { mutableStateOf(lowVoltage) }
+
+    // Voltage warning dialog
+    if (showVoltageWarning && voltage != null) {
+        AlertDialog(
+            onDismissRequest = { showVoltageWarning = false },
+            title = { Text("Voltage Warning") },
+            text = {
+                Text(
+                    if (voltage == 0.0 || voltage < 1.0)
+                        "OBD port voltage is ${"%.1f".format(voltage)}V. " +
+                        "The vehicle ignition may be OFF. Turn the ignition ON and reconnect."
+                    else
+                        "Low voltage detected: ${"%.1f".format(voltage)}V. " +
+                        "The ECU may not be fully powered. Check battery or ignition."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showVoltageWarning = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Connection status banner
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = StatusGreen.copy(alpha = 0.15f))
+            colors = CardDefaults.cardColors(
+                containerColor = if (lowVoltage) StatusYellow.copy(alpha = 0.15f)
+                    else StatusGreen.copy(alpha = 0.15f)
+            )
         ) {
             Row(
                 modifier = Modifier
@@ -660,9 +735,9 @@ private fun ConnectedContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Default.CheckCircle,
+                    if (lowVoltage) Icons.Default.Warning else Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = StatusGreen,
+                    tint = if (lowVoltage) StatusYellow else StatusGreen,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -670,13 +745,27 @@ private fun ConnectedContent(
                     Text(
                         "Connected",
                         style = MaterialTheme.typography.titleSmall,
-                        color = StatusGreen
+                        color = if (lowVoltage) StatusYellow else StatusGreen
                     )
                     Text(
                         state.deviceName,
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurface
                     )
+                    if (state.voltage != null) {
+                        Text(
+                            "Voltage: ${"%.1f".format(voltage)}V",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (lowVoltage) StatusYellow else StatusGreen
+                        )
+                    }
+                    if (state.adapterInfo != null) {
+                        Text(
+                            "ATI: ${state.adapterInfo}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant
+                        )
+                    }
                     if (state.protocolInfo != null) {
                         Text(
                             "${state.protocolInfo.description} · ATDPN=${state.protocolInfo.number}",

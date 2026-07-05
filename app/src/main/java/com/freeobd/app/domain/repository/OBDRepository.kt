@@ -15,13 +15,17 @@ interface OBDRepository {
     // --- Initialization ---
 
     /**
-     * Initialize the ELM327 adapter with the standard init sequence:
-     * ATZ → ATE0 → ATL0 → ATSPx → ATH1
+     * Initialize the ELM327 adapter with the standard init sequence.
      *
      * @param protocol The protocol selection command (e.g. "ATSP0" for auto-detect).
-     * @param ecuAddress Optional ECU CAN address (e.g. "7DF").
+     * @param ecuAddress Optional ECU address (e.g. "7DF" for CAN, "33" for KWP).
+     * @param cryptoKey Optional crypto key for Chinese clone adapters (AT+SETCRYPTF).
      */
-    suspend fun initELM327(protocol: String = "ATSP0", ecuAddress: String? = null): Result<Unit>
+    suspend fun initELM327(
+        protocol: String = "ATSP0",
+        ecuAddress: String? = null,
+        cryptoKey: String? = null
+    ): Result<Unit>
 
     /**
      * Query the actual OBD protocol negotiated between the adapter and vehicle.
@@ -30,6 +34,20 @@ interface OBDRepository {
      * Sends ATDPN (numeric) and ATDP (description) to the adapter.
      */
     suspend fun getProtocolInfo(): Result<ProtocolInfo>
+
+    /**
+     * Read the vehicle battery voltage from the ELM327 adapter.
+     * Uses the ATRV command. Typical voltage is ~12V when ECU is powered,
+     * ~14V when engine is running (alternator charging), ~0V when ignition off.
+     */
+    suspend fun readVoltage(): Result<Double>
+
+    /**
+     * Read the ELM327 adapter firmware identification string.
+     * Uses the ATI command. Returns the raw version string
+     * (e.g. "ELM327 v1.5" or "OBDII v1.0" on clones).
+     */
+    suspend fun readAdapterInfo(): Result<String>
 
     // --- Mode 01: Current Data ---
 

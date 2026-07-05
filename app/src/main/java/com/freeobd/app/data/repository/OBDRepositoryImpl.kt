@@ -40,17 +40,38 @@ class OBDRepositoryImpl(
     }
 
     // ── Initialization ─────────────────────────────────────
-    override suspend fun initELM327(protocol: String, ecuAddress: String?): Result<Unit> {
+    override suspend fun initELM327(
+        protocol: String,
+        ecuAddress: String?,
+        cryptoKey: String?
+    ): Result<Unit> {
         return runCatching {
-            // Reset cached command queue so we always use the current transport.
-            // If we don't do this, a reconnection after disconnect would reuse
-            // the old queue referencing a stale (disconnected) transport, causing
-            // "Not connected—no input stream available".
             commandQueue = null
             val queue = requireQueue()
             queue.initialize()
-            ELM327Initializer(queue).initialize(protocol, ecuAddress).getOrThrow()
+            ELM327Initializer(queue).initialize(protocol, ecuAddress, cryptoKey).getOrThrow()
             queue.markFirstCommand()
+        }
+    }
+
+    override suspend fun readVoltage(): Result<Double> {
+        return runCatching {
+            val rawBytes = requireQueue().sendRaw("ATRV").getOrThrow()
+            val text = String(rawBytes, Charsets.US_ASCII).trim()
+            // ATRV returns a voltage string like "12.5V" or "0.0V"
+            val cleaned = text.replace(">", "").replace("V", "").replace("v", "").trim()
+            cleaned.toDouble()
+        }
+    }
+
+    override suspend fun readAdapterInfo(): Result<String> {
+        return runCatching {
+            val rawBytes = requireQueue().sendRaw("ATI").getOrThrow()
+            String(rawBytes, Charsets.US_ASCII)
+                .replace(">", "")
+                .replace("\r", "")
+                .replace("\n", " ")
+                .trim()
         }
     }
 

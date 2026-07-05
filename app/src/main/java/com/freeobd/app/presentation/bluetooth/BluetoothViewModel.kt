@@ -48,6 +48,7 @@ class BluetoothViewModel(
     private var selectedProtocol: String = "ATSP0"
     private var selectedTransportType: DeviceType = DeviceType.SPP
     private var ecuAddress: String? = null
+    private var cryptoKey: String = DEFAULT_CRYPTO_KEY
     // Use map keyed by address to deduplicate — data class equals/hashCode includes
     // all fields (including rssi), so a Set can't guarantee uniqueness by address alone.
     private val discoveredDevices = linkedMapOf<String, BluetoothDeviceInfo>()
@@ -60,12 +61,16 @@ class BluetoothViewModel(
         when (event) {
             BluetoothEvent.StartScan -> startScan()
             BluetoothEvent.StopScan -> stopScan()
-            is BluetoothEvent.Connect -> connect(event.device, event.protocol, event.ecuAddress, event.transportType)
+            is BluetoothEvent.Connect -> connect(
+                event.device, event.protocol, event.ecuAddress,
+                event.transportType, event.cryptoKey ?: cryptoKey
+            )
             BluetoothEvent.Disconnect -> disconnect()
             BluetoothEvent.DismissError -> dismissError()
             is BluetoothEvent.SelectProtocol -> { selectedProtocol = event.protocol }
             is BluetoothEvent.SelectTransport -> { selectedTransportType = event.transportType }
             is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address.ifBlank { null } }
+            is BluetoothEvent.SetCryptoKey -> { cryptoKey = event.key.ifBlank { DEFAULT_CRYPTO_KEY } }
             is BluetoothEvent.ToggleDemoMode -> toggleDemoMode()
         }
     }
@@ -145,7 +150,8 @@ class BluetoothViewModel(
         device: BluetoothDeviceInfo,
         protocol: String,
         ecuAddress: String?,
-        transportType: DeviceType
+        transportType: DeviceType,
+        cryptoKey: String? = null
     ) {
         // Cancel ongoing scan so stray DevicesFound emissions don't
         // overwrite the Connecting / Connected state mid-connection.
@@ -159,14 +165,18 @@ class BluetoothViewModel(
             if (_isDemoMode.value) {
                 repo.connect(device, protocol, ecuAddress, transportType).fold(
                     onSuccess = {
-                        activeObdRepo.initELM327(protocol, ecuAddress).fold(
+                        activeObdRepo.initELM327(protocol, ecuAddress, cryptoKey).fold(
                             onSuccess = {
                                 val info = activeObdRepo.getProtocolInfo().getOrNull()
+                                val adapterInfo = activeObdRepo.readAdapterInfo().getOrNull()
+                                val voltage = activeObdRepo.readVoltage().getOrNull()
                                 _uiState.value = BluetoothUiState.Connected(
                                     deviceName = device.name ?: device.address,
                                     deviceAddress = device.address,
                                     protocol = protocol,
-                                    protocolInfo = info
+                                    protocolInfo = info,
+                                    adapterInfo = adapterInfo,
+                                    voltage = voltage
                                 )
                                 launch { activeObdRepo.discoverSupportedPIDs().onFailure { } }
                             },
@@ -187,13 +197,17 @@ class BluetoothViewModel(
                     }
                 )
             } else {
-                connectBluetoothUseCase(device, protocol, ecuAddress, transportType).fold(
+                connectBluetoothUseCase(device, protocol, ecuAddress, transportType, cryptoKey).fold(
                     onSuccess = { protocolInfo ->
+                        val adapterInfo = activeObdRepo.readAdapterInfo().getOrNull()
+                        val voltage = activeObdRepo.readVoltage().getOrNull()
                         _uiState.value = BluetoothUiState.Connected(
                             deviceName = device.name ?: device.address,
                             deviceAddress = device.address,
                             protocol = protocol,
-                            protocolInfo = protocolInfo
+                            protocolInfo = protocolInfo,
+                            adapterInfo = adapterInfo,
+                            voltage = voltage
                         )
                         launch {
                             discoverPIDsUseCase().onFailure { error ->
@@ -236,6 +250,11 @@ class BluetoothViewModel(
                 else -> { /* handled by explicit events */ }
             }
         }
+    }
+
+    companion object {
+        /** Default crypto key for Chinese STM32-based ELM327 clones. */
+        const val DEFAULT_CRYPTO_KEY = "CBF7E7C"
     }
 
     override fun onCleared() {

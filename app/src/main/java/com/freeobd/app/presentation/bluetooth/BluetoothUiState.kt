@@ -35,7 +35,9 @@ sealed interface BluetoothUiState {
         val deviceName: String,
         val deviceAddress: String,
         val protocol: String = "Auto-detect",
-        val protocolInfo: ProtocolInfo? = null
+        val protocolInfo: ProtocolInfo? = null,
+        val adapterInfo: String? = null,
+        val voltage: Double? = null
     ) : BluetoothUiState
 
     /** An error occurred during scanning or connection. */
@@ -60,7 +62,8 @@ sealed interface BluetoothEvent {
         val device: BluetoothDeviceInfo,
         val protocol: String = "ATSP0",
         val ecuAddress: String? = null,
-        val transportType: DeviceType = DeviceType.SPP
+        val transportType: DeviceType = DeviceType.SPP,
+        val cryptoKey: String? = null
     ) : BluetoothEvent
 
     /** Disconnect from the current device. */
@@ -77,6 +80,9 @@ sealed interface BluetoothEvent {
 
     /** Set a specific ECU CAN address. */
     data class SetEcuAddress(val address: String) : BluetoothEvent
+
+    /** Set the crypto key for Chinese clone adapters (AT+SETCRYPTF). */
+    data class SetCryptoKey(val key: String) : BluetoothEvent
 
     /** Toggle demo mode on/off. */
     data object ToggleDemoMode : BluetoothEvent

@@ -31,9 +31,19 @@ class MockOBDRepository : OBDRepository {
     private val random = Random(42)
 
     // ── Initialization ─────────────────────────────────────
-    override suspend fun initELM327(protocol: String, ecuAddress: String?): Result<Unit> {
+    override suspend fun initELM327(protocol: String, ecuAddress: String?, cryptoKey: String?): Result<Unit> {
         delay(300) // Simulate init sequence
         return Result.success(Unit)
+    }
+
+    override suspend fun readVoltage(): Result<Double> {
+        delay(50)
+        return Result.success(13.8)
+    }
+
+    override suspend fun readAdapterInfo(): Result<String> {
+        delay(50)
+        return Result.success("ELM327 v2.1 (demo)")
     }
 
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
