@@ -220,19 +220,26 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 09: Vehicle Information ───────────────────────
     override suspend fun readVehicleInfo(): Result<VehicleInfo> {
-        DebugLogger.tx("0902"); delay(100); DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
-        DebugLogger.tx("0904"); delay(100); DebugLogger.rx("49 04 01 43 41 4C 2D 32 30 32 34")
-        DebugLogger.tx("0906"); delay(100); DebugLogger.rx("49 06 01 A1 B2 C3 D4")
+        DebugLogger.tx("0902"); delay(100)
+        DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
+        // 0904: 2 calibration IDs, each 16 ASCII bytes (null-padded)
+        // Record 1 = "3292", Record 2 = "0-10"
+        DebugLogger.tx("0904"); delay(100)
+        DebugLogger.rx("49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00")
+        // 0906: 2 CVN records, each 4 raw bytes
+        // Record 1 = A1B2C3D4, Record 2 = E5F6A7B8
+        DebugLogger.tx("0906"); delay(100)
+        DebugLogger.rx("49 06 02 A1 B2 C3 D4 E5 F6 A7 B8")
         return Result.success(
             VehicleInfo(
                 vin = "1HGBH41JXMN109186",
                 calibrationIds = listOf(
-                    CalibrationId("ECM", "CAL-2024-03-A1"),
-                    CalibrationId("TCM", "CAL-2024-03-T2")
+                    CalibrationId("ECM", "3292"),
+                    CalibrationId("ECM_1", "0-10")
                 ),
                 cvns = listOf(
                     CalibrationVerificationNumber("ECM", "A1B2C3D4"),
-                    CalibrationVerificationNumber("TCM", "E5F6A7B8")
+                    CalibrationVerificationNumber("ECM_1", "E5F6A7B8")
                 )
             )
         )

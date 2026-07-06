@@ -236,27 +236,27 @@ class OBDRepositoryImpl(
             }
 
             // Calibration ID (Mode 09 PID 04)
-            val calId = readOptional {
+            // Response: 49 04 [count] [16 bytes record1] [16 bytes record2] ...
+            // Each record is an ASCII calibration ID, null/space padded to 16 bytes.
+            val calIds = readOptional {
                 val rawBytes = requireQueue().sendRaw("0904").getOrThrow()
                 val data = extractDataBytes(rawBytes)
-                // Skip the PCI/record-number prefix byte
-                val calData = if (data.size > 1) data.copyOfRange(1, data.size) else data
-                String(calData).trim().takeIf { it.isNotBlank() && it.length > 2 }
-            }
+                parseCalibrationIds(data)
+            } ?: emptyList()
 
             // CVN (Mode 09 PID 06)
-            val cvn = readOptional {
+            // Response: 49 06 [count] [record1] [record2] ...
+            // Each record is raw bytes (typically 4, but compute from data size).
+            val cvns = readOptional {
                 val rawBytes = requireQueue().sendRaw("0906").getOrThrow()
                 val data = extractDataBytes(rawBytes)
-                // Skip the PCI/record-number prefix byte
-                val cvnData = if (data.size > 1) data.copyOfRange(1, data.size) else data
-                cvnData.joinToString("") { String.format("%02X", it) }.takeIf { it.isNotBlank() }
-            }
+                parseCvns(data)
+            } ?: emptyList()
 
             VehicleInfo(
                 vin = vin,
-                calibrationIds = calId?.let { listOf(CalibrationId("ECM", it)) } ?: emptyList(),
-                cvns = cvn?.let { listOf(CalibrationVerificationNumber("ECM", it)) } ?: emptyList()
+                calibrationIds = calIds,
+                cvns = cvns
             )
         }
     }
@@ -431,6 +431,70 @@ class OBDRepositoryImpl(
 
     private suspend fun <T> readOptional(block: suspend () -> T?): T? {
         return try { block() } catch (_: Exception) { null }
+    }
+
+    // ── Mode 09 response parsers ─────────────────────────
+
+    /**
+     * Parse Mode 09 PID 04 (Calibration ID) response.
+     *
+     * Format: [count] [16 bytes record1] [16 bytes record2] ...
+     * Each record is an ASCII string, null/space padded to 16 bytes.
+     */
+    private fun parseCalibrationIds(data: ByteArray): List<CalibrationId> {
+        if (data.isEmpty()) return emptyList()
+        val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
+        if (count == 0) return emptyList()
+
+        val recordSize = 16
+        val available = (data.size - 1) / recordSize
+        val actual = minOf(count, available)
+        if (actual == 0) return emptyList()
+
+        val ids = mutableListOf<CalibrationId>()
+        for (i in 0 until actual) {
+            val start = 1 + i * recordSize
+            val end = minOf(start + recordSize, data.size)
+            val record = data.copyOfRange(start, end)
+            // Trim trailing nulls and whitespace
+            val text = String(record, Charsets.US_ASCII)
+                .trimEnd(' ', ' ')
+            if (text.isNotBlank()) {
+                val ecuName = if (ids.isEmpty()) "ECM" else "ECM_$i"
+                ids.add(CalibrationId(ecuName, text))
+            }
+        }
+        return ids
+    }
+
+    /**
+     * Parse Mode 09 PID 06 (CVN) response.
+     *
+     * Format: [count] [record1] [record2] ...
+     * Each record is raw bytes; record size = remaining bytes / count.
+     * Typical record size is 4 bytes, but some ECUs use 2.
+     */
+    private fun parseCvns(data: ByteArray): List<CalibrationVerificationNumber> {
+        if (data.isEmpty()) return emptyList()
+        val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
+        if (count == 0) return emptyList()
+
+        val remaining = data.size - 1
+        if (remaining < count) return emptyList()
+        val recordSize = remaining / count
+
+        val cvns = mutableListOf<CalibrationVerificationNumber>()
+        for (i in 0 until count) {
+            val start = 1 + i * recordSize
+            val end = start + recordSize
+            val record = data.copyOfRange(start, end)
+            val hex = record.joinToString("") { String.format("%02X", it) }
+            if (hex.isNotBlank()) {
+                val ecuName = if (cvns.isEmpty()) "ECM" else "ECM_$i"
+                cvns.add(CalibrationVerificationNumber(ecuName, hex))
+            }
+        }
+        return cvns
     }
 
     fun release() {
