@@ -1,5 +1,6 @@
 package com.freeobd.app.data.remote
 
+import com.freeobd.app.utils.ByteUtils
 import com.github.eltonvs.obd.command.ObdCommand
 import com.github.eltonvs.obd.command.ObdResponse
 import com.github.eltonvs.obd.connection.ObdDeviceConnection
@@ -85,8 +86,8 @@ class ObdCommandQueue(
             withContext(Dispatchers.IO) {
                 runCatching {
                     val cmd = if (rawCommand.endsWith("\r")) rawCommand else "$rawCommand\r"
-                    // forceLog=false: normal auto commands, logged only when debug is enabled
-                    // forceLog=true: caller (sendRawCommand) handles logging, skip queue logging
+                    // forceLog=false: automatic commands, logged only when debug is enabled
+                    // forceLog=true: caller handles logging (sendRawCommand, sendObdCommand)
                     val shouldLog = !forceLog && DebugLogger.enabled
 
                     if (shouldLog) DebugLogger.tx(rawCommand)
@@ -117,6 +118,51 @@ class ObdCommandQueue(
                 }
             }
         }
+
+    /**
+     * Send an OBD mode command (01-09) with negative response detection.
+     *
+     * Wraps [sendRaw] and checks the response for ISO 15765-2 negative
+     * response frames (7F [service] [responseCode]). If a negative response
+     * is detected, returns [Result.failure] with [NegativeResponseException].
+     *
+     * AT commands (ATZ, ATSP, etc.) should continue to use [sendRaw] directly.
+     */
+    suspend fun sendObdCommand(command: String, forceLog: Boolean = false): Result<ByteArray> {
+        val result = sendRaw(command, forceLog)
+        if (result.isFailure) return result
+
+        val response = result.getOrThrow()
+        // Decode ELM327 ASCII hex response and check for 7F negative response.
+        // The response may contain status messages on separate lines
+        // (e.g. "SEARCHING..."); only hex data lines are checked.
+        val text = String(response, Charsets.US_ASCII)
+            .replace(">", "").replace("\r", "\n")
+        for (line in text.lines()) {
+            val hex = line.replace(" ", "").trim()
+            if (hex.isEmpty() || hex.length < 6) continue
+            val decoded = try {
+                ByteUtils.fromHexString(hex)
+            } catch (_: Exception) {
+                continue // Not valid hex (e.g. "SEARCHING...") — skip
+            }
+            // Search for 7F [service] [responseCode] pattern
+            for (i in 0 until decoded.size - 2) {
+                if (decoded[i].toInt() and 0xFF == 0x7F) {
+                    val service = decoded[i + 1].toInt() and 0xFF
+                    val responseCode = decoded[i + 2].toInt() and 0xFF
+                    val ex = NegativeResponseException(
+                        service = service,
+                        responseCode = responseCode,
+                        command = command
+                    )
+                    DebugLogger.error("$command: 7F ${String.format("%02X", service)} ${String.format("%02X", responseCode)}")
+                    return Result.failure(ex)
+                }
+            }
+        }
+        return result
+    }
 
     fun markFirstCommand() { isFirstCommand = true }
     val isActive: Boolean get() = transport.isConnected && connection != null
@@ -188,5 +234,48 @@ class ObdCommandQueue(
         private const val FIRST_COMMAND_TIMEOUT_MS = 10_000L
         private const val STANDARD_COMMAND_TIMEOUT_MS = 3_000L
         private const val MAX_RESPONSE_SIZE = 4096
+    }
+}
+
+/**
+ * Thrown when an OBD mode command receives an ISO 15765-2 negative response.
+ *
+ * @property service The requested service ID (e.g. 0x09 for Mode 09).
+ * @property responseCode The NRC (Negative Response Code) from the ECU.
+ * @property command The original OBD command that triggered this response.
+ */
+class NegativeResponseException(
+    val service: Int,
+    val responseCode: Int,
+    val command: String
+) : Exception(
+    buildString {
+        append("Negative response for $command: service=0x")
+        append(String.format("%02X", service))
+        append(", code=0x")
+        append(String.format("%02X", responseCode))
+        append(" (")
+        append(responseCodeDescription(responseCode))
+        append(")")
+    }
+) {
+    companion object {
+        /** Human-readable descriptions for common NRC values (SAE J1979 / ISO 14229). */
+        private fun responseCodeDescription(code: Int): String = when (code) {
+            0x10 -> "generalReject"
+            0x11 -> "serviceNotSupported"
+            0x12 -> "subFunctionNotSupported"
+            0x13 -> "incorrectMessageLengthOrInvalidFormat"
+            0x21 -> "busyRepeatRequest"
+            0x22 -> "conditionsNotCorrect"
+            0x24 -> "requestSequenceError"
+            0x31 -> "requestOutOfRange"
+            0x33 -> "securityAccessDenied"
+            0x35 -> "invalidKey"
+            0x36 -> "exceedNumberOfAttempts"
+            0x37 -> "requiredTimeDelayNotExpired"
+            0x78 -> "requestCorrectlyReceivedResponsePending"
+            else -> "unknown"
+        }
     }
 }

@@ -78,7 +78,16 @@ class OBDRepositoryImpl(
     override suspend fun sendRawCommand(command: String): Result<String> {
         DebugLogger.tx(command)
         return runCatching {
-            val rawBytes = requireQueue().sendRaw(command, forceLog = true).getOrThrow()
+            // Route OBD mode commands (01-0A) through sendObdCommand for 7F detection.
+            // AT commands (ATZ, ATSP, etc.) go through sendRaw directly.
+            val isObdCommand = command.length >= 2 &&
+                command[0] == '0' &&
+                (command[1] in '1'..'9' || command[1] in 'A'..'F')
+            val rawBytes = if (isObdCommand) {
+                requireQueue().sendObdCommand(command, forceLog = true).getOrThrow()
+            } else {
+                requireQueue().sendRaw(command, forceLog = true).getOrThrow()
+            }
             val text = String(rawBytes, Charsets.US_ASCII)
                 .replace(">", "")
                 .replace("\r", "\n")
@@ -145,7 +154,7 @@ class OBDRepositoryImpl(
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         return runCatching {
             val pidHex = String.format("%02X", pidId)
-            val rawBytes = requireQueue().sendRaw("01$pidHex").getOrThrow()
+            val rawBytes = requireQueue().sendObdCommand("01$pidHex").getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes)
             parsed ?: OBDData.Unavailable
         }
@@ -179,7 +188,7 @@ class OBDRepositoryImpl(
             while (offset <= PIDBitmapParser.MAX_GROUP_OFFSET) {
                 val modeHex = String.format("%02X", mode)
                 val offsetHex = String.format("%02X", offset)
-                val rawBytes = requireQueue().sendRaw("$modeHex$offsetHex").getOrThrow()
+                val rawBytes = requireQueue().sendObdCommand("$modeHex$offsetHex").getOrThrow()
 
                 val dataBytes = extractDataBytes(rawBytes)
                 if (PIDBitmapParser.isBitmapEmpty(dataBytes)) break
@@ -201,7 +210,7 @@ class OBDRepositoryImpl(
     // ── Mode 04: Clear DTCs ────────────────────────────────
     override suspend fun clearDTCs(): Result<Unit> {
         return runCatching {
-            requireQueue().sendRaw("04").getOrThrow()
+            requireQueue().sendObdCommand("04").getOrThrow()
         }
     }
 
@@ -209,7 +218,7 @@ class OBDRepositoryImpl(
     override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
         return runCatching {
             val pidHex = String.format("%02X", pidId)
-            val rawBytes = requireQueue().sendRaw("02$pidHex").getOrThrow()
+            val rawBytes = requireQueue().sendObdCommand("02$pidHex").getOrThrow()
             parsePIDResponse(pidId, rawBytes) ?: OBDData.Unavailable
         }
     }
@@ -223,7 +232,7 @@ class OBDRepositoryImpl(
         return runCatching {
             // VIN (Mode 09 PID 02)
             val vin = readOptional {
-                val rawBytes = requireQueue().sendRaw("0902").getOrThrow()
+                val rawBytes = requireQueue().sendObdCommand("0902").getOrThrow()
                 val data = extractDataBytes(rawBytes)
                 // Try multi-frame reassembly first; then fall back to raw data
                 // (skipping the PCI/record-number prefix byte that some ECUs prepend).
@@ -239,7 +248,7 @@ class OBDRepositoryImpl(
             // Response: 49 04 [count] [16 bytes record1] [16 bytes record2] ...
             // Each record is an ASCII calibration ID, null/space padded to 16 bytes.
             val calIds = readOptional {
-                val rawBytes = requireQueue().sendRaw("0904").getOrThrow()
+                val rawBytes = requireQueue().sendObdCommand("0904").getOrThrow()
                 val data = extractDataBytes(rawBytes)
                 parseCalibrationIds(data)
             } ?: emptyList()
@@ -248,7 +257,7 @@ class OBDRepositoryImpl(
             // Response: 49 06 [count] [record1] [record2] ...
             // Each record is raw bytes (typically 4, but compute from data size).
             val cvns = readOptional {
-                val rawBytes = requireQueue().sendRaw("0906").getOrThrow()
+                val rawBytes = requireQueue().sendObdCommand("0906").getOrThrow()
                 val data = extractDataBytes(rawBytes)
                 parseCvns(data)
             } ?: emptyList()
@@ -409,7 +418,7 @@ class OBDRepositoryImpl(
 
     private suspend fun readDTCsFromMode(modeHex: String, status: DTCStatus): Result<List<DTC>> {
         return runCatching {
-            val rawBytes = requireQueue().sendRaw(modeHex).getOrThrow()
+            val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
             val dataBytes = extractDataBytes(rawBytes)
             DTCParser.parse(dataBytes, status).map { enrichDtc(it) }
         }

@@ -109,6 +109,32 @@ app/src/main/java/com/freeobd/app/
 
 ---
 
+## 📡 命令发送方法
+
+`ObdCommandQueue` 提供三个命令入口，职责不同，避免混用：
+
+| 方法 | 用途 | 7F 检测 | 日志行为 | 调用者 |
+| :--- | :--- | :--- | :--- | :--- |
+| `sendRaw` | AT 命令（`ATZ`、`ATRV`、`ATSP` 等）<br>ELM327 初始化序列 | ❌ 不检测 | `DebugLogger.enabled` 时记录 | `ELM327Initializer`、<br>`getProtocolInfo`、<br>`readVoltage`、`readAdapterInfo` |
+| `sendObdCommand` | OBD 模式命令（`010C`、`03`、`0902` 等）<br>所有 01-0A 模式请求 | ✅ 检测 `7F xx yy`<br>命中返回 failure | 同上 | `readPID`、`readDTCsFromMode`、<br>`discoverSupportedPIDs`、<br>`readFreezeFrame`、<br>`clearDTCs`、`readVehicleInfo` |
+| `sendRawCommand`<br>（Repository 层） | Debug Console 手动 TX 输入<br>自动区分 AT / OBD 路由 | ✅ OBD 命令走<br>`sendObdCommand` | **始终记录**<br>不受 `DebugLogger.enabled` 影响 | `DebugConsoleScreen`<br>手动输入框 |
+
+> **原则**：发送 01-0A 模式的 OBD 请求必须用 `sendObdCommand`，否则 7F 负响应会被当作"无数据"静默忽略。
+
+### 7F 负响应码
+
+ECU 拒绝 OBD 请求时返回 `7F [service] [code]`，常见错误码：
+
+| Code | 含义 |
+| :--- | :--- |
+| `11` | serviceNotSupported |
+| `12` | subFunctionNotSupported |
+| `22` | conditionsNotCorrect |
+| `31` | requestOutOfRange |
+| `78` | responsePending |
+
+---
+
 ## 🚀 构建与运行
 
 ### 环境要求
@@ -227,3 +253,4 @@ cd Free_OBD
 5. **CAN 协议车型**：2008 年以后的汽油车和 2004 年以后的柴油车普遍支持 CAN 协议（ATSP6/ATSP7）
 6. **Demo 模式限制**：模拟数据仅供体验，车速和 RPM 等参数为随机生成，不代表真实车辆状态
 7. **加密密钥**：个别廉价 ELM327 克隆版需要动态识别并计算密钥，无需手动配置。标准 ELM327 适配器自动跳过此步骤
+8. **负响应 (7F)**：ECU 拒绝 OBD 请求时返回 `7F [service] [code]`（如 `7F 09 11` 表示 Mode 09 不支持），Debug Console 会显示红色 ERR 日志。常见原因：车辆不支持该模式、请求条件不满足、安全访问拒绝
