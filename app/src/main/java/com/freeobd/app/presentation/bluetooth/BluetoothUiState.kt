@@ -62,8 +62,7 @@ sealed interface BluetoothEvent {
         val device: BluetoothDeviceInfo,
         val protocol: String = "ATSP0",
         val ecuAddress: String? = null,
-        val transportType: DeviceType = DeviceType.SPP,
-        val cryptoKey: String? = null
+        val transportType: DeviceType = DeviceType.SPP
     ) : BluetoothEvent
 
     /** Disconnect from the current device. */
@@ -80,9 +79,6 @@ sealed interface BluetoothEvent {
 
     /** Set a specific ECU CAN address. */
     data class SetEcuAddress(val address: String) : BluetoothEvent
-
-    /** Set the crypto key for Chinese clone adapters (AT+SETCRYPT). */
-    data class SetCryptoKey(val key: String) : BluetoothEvent
 
     /** Enable debug logging for the Debug Console. */
     data object EnableDebugLogging : BluetoothEvent

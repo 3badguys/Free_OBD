@@ -10,20 +10,26 @@ import kotlinx.coroutines.delay
  *  3. ATL0           — Disable line feeds
  *  4. ATRV           — Voltage check (non-critical)
  *  5. ATI            — Firmware version (non-critical, useful for debugging)
- *  6. AT+SETCRYPT   — Crypto key for STM32 clone adapters (optional, non-critical)
- *  7. ATSPx          — Protocol selection
- *  8. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
- *  9. ATSH           — ECU header address (optional)
+ *  6. AT+VERSION     — Extended version info; auto-detects Yuming crypto handshake
+ *  7. AT+SETCRYPT    — Auto-computed for Yuming adapters, or manual override (non-critical)
+ *  8. ATSPx          — Protocol selection
+ *  9. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
+ * 10. ATSH           — ECU header address (optional)
  */
 class ELM327Initializer(
     private val commandQueue: ObdCommandQueue
 ) {
+    /**
+     * @param cryptoKey Optional manual crypto key override. When null (the default),
+     *                  the initializer will auto-detect Yuming Electronics adapters
+     *                  from the AT+VERSION response and compute the key automatically.
+     */
     suspend fun initialize(
         protocol: String = "ATSP0",
         ecuAddress: String? = null,
         cryptoKey: String? = null
     ): Result<Unit> {
-        val steps = buildInitSteps(protocol, ecuAddress, cryptoKey)
+        val steps = buildInitSteps(protocol, ecuAddress)
 
         steps.forEachIndexed { index, step ->
             val result = commandQueue.sendRaw(step.command)
@@ -38,9 +44,27 @@ class ELM327Initializer(
                         )
                     )
                 }
-                // Non-critical step failure (e.g. ATRV, AT+SETCRYPT
-                // on adapters that don't support it) — skip and continue.
+                // Non-critical step failure (e.g. ATRV on adapters that
+                // don't support it) — skip and continue.
             }
+
+            // After AT+VERSION, auto-detect Yuming crypto handshake.
+            // The crypt: challenge is embedded in the version response and
+            // changes on every connection, so the key must be computed at runtime.
+            if (step.command == "AT+VERSION") {
+                val key = cryptoKey ?: result.getOrNull()?.let { response ->
+                    if (YMOBDCrypto.isYumingAdapter(response)) {
+                        YMOBDCrypto.extractCryptChallenge(response)?.let { challenge ->
+                            YMOBDCrypto.generateKey(challenge)
+                        }
+                    } else null
+                }
+                if (!key.isNullOrBlank()) {
+                    commandQueue.sendRaw("AT+SETCRYPT$key")
+                    delay(300L)
+                }
+            }
+
             delay(step.postDelayMs)
         }
         return Result.success(Unit)
@@ -48,8 +72,7 @@ class ELM327Initializer(
 
     private fun buildInitSteps(
         protocol: String,
-        ecuAddress: String?,
-        cryptoKey: String?
+        ecuAddress: String?
     ): List<InitStep> {
         val steps = mutableListOf<InitStep>()
         val proto = if (protocol in VALID_PROTOCOLS) protocol else "ATSP0"
@@ -70,22 +93,12 @@ class ELM327Initializer(
         // Step 5: Read firmware version — useful for debugging adapter issues.
         steps.add(InitStep("ATI (firmware info)", "ATI", 200L, critical = false))
 
-        // Step 5b: Read extended version info (debug console only, not displayed in UI).
+        // Step 6: Read extended version info.
+        // If the adapter identifies as Shenzhen Yuming Electronics, the
+        // crypt: challenge is extracted and the SETCRYPT key is computed
+        // automatically (see YMOBDCrypto). A manual cryptoKey override
+        // passed to initialize() takes precedence.
         steps.add(InitStep("AT+VERSION", "AT+VERSION", 200L, critical = false))
-
-        // Step 6: Set crypto key BEFORE protocol selection.
-        // STM32-based ELM327 clones need this handshake before they will
-        // relay OBD data. The key is user-configurable in Advanced options.
-        if (!cryptoKey.isNullOrBlank()) {
-            steps.add(
-                InitStep(
-                    "AT+SETCRYPT (crypto key)",
-                    "AT+SETCRYPT$cryptoKey",
-                    300L,
-                    critical = false
-                )
-            )
-        }
 
         // Step 7: Select protocol
         steps.add(

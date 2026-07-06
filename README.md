@@ -24,7 +24,7 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | **蓝牙设备扫描** | 同时扫描经典蓝牙（SPP）和低功耗蓝牙（BLE）OBD 适配器 |
 | **协议自动/手动选择** | 支持 ATSP0-ATSP9 共 10 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW |
 | **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init，K 线自动跳过 ATH1 |
-| **加密密钥 (AT+SETCRYPT)** | 国产 STM32 芯片 ELM327 克隆适配器专用，默认 CBF7E7C，可在 Advanced 中配置 |
+| **加密握手 (AT+SETCRYPT)** | 自动识别并从 AT+VERSION 提取挑战值并计算密钥 |
 | **电压检测** | ATRV 读取电压，低电压时弹窗警告 |
 | **适配器固件信息** | ATI 版本号显示在 Connected 卡片上 |
 | **ECU 地址配置** | 支持广播地址（0x7DF）和特定 ECU 地址 |
@@ -74,6 +74,7 @@ app/src/main/java/com/freeobd/app/
 │   │   ├── BleTransport.kt     # BLE GATT 实现（骨架）
 │   │   ├── ObdCommandQueue.kt  # 原始 ELM327 命令队列 + Mutex 串行化
 │   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→ATRV→ATI→AT+VERSION→AT+SETCRYPT→ATSP→ATH1→ATSH
+│   │   ├── YMOBDCrypto.kt          # 加密密钥生成算法（crypt: 挑战值 → SETCRYPT 密钥）
 │   │   ├── PIDBitmapParser.kt      # PID 位图解析（SAE J1979）
 │   │   ├── DTCParser.kt           # DTC 故障码解析（SAE J2012）
 │   │   ├── MultiFrameHandler.kt   # ISO 15765-2 多帧拼接（VIN 等）
@@ -164,7 +165,7 @@ cd Free_OBD
 - 确保 OBD 适配器已插入车辆 OBD-II 接口并通电
 - 在设备列表中选择你的适配器（通常名为 OBDII、ELM327、Vgate 等）
 - **协议选择**：默认 ATSP0（自动检测）。摩托车 K 线建议手动选 ATSP3（ISO 9141-2）、ATSP4（KWP 快）或 ATSP5（KWP 慢）
-- 展开 **Advanced Options** 可设置 ECU 地址、加密密钥、启用调试日志
+- 展开 **Advanced Options** 可设置 ECU 地址、启用调试日志
 - 连接成功后，**Connected** 卡片显示电压、适配器固件版本、协商协议
 
 ### 2. 查看实时数据
@@ -204,8 +205,8 @@ cd Free_OBD
 3. ATL0             关闭换行符
 4. ATRV             电压检测（非关键步骤）
 5. ATI              固件版本（非关键）
-6. AT+VERSION       扩展版本信息（仅记录到调试控制台，非关键）
-7. AT+SETCRYPT     加密密钥，国产 STM32 克隆适配器专用（可选，非关键）
+6. AT+VERSION       扩展版本信息；自动提取 crypt: 挑战值
+7. AT+SETCRYPT      根据 crypt: 挑战值自动计算密钥并发送
 8. ATSPx            协议选择（ATSP0 = 自动检测）
 9. ATH1             CAN 头（仅 CAN 协议发送，K 线 ATSP3/4/5 跳过）
 10. ATSH            ECU 头地址（可选，配置了才发）
@@ -213,6 +214,7 @@ cd Free_OBD
 
 - **K 线协议（ATSP3/4/5）**：第 9 步 ATH1 跳过。ELM327 在首次 OBD 命令时自动执行 5-baud 慢速或快速 init
 - **非关键步骤**：失败不会阻断初始化流程（适配器可能不支持该命令）
+- **加密**：`crypt:` 挑战值每次连接都不同，密钥通过逆向算法实时计算（详见 [AT+SETCRYPT.md](AT+SETCRYPT.md)）
 
 ---
 
@@ -224,4 +226,4 @@ cd Free_OBD
 4. **K 线 / 摩托车**：并非所有摩托车都支持标准 OBD-II PID。国四及更新车型一般支持，建议先试 ATSP3
 5. **CAN 协议车型**：2008 年以后的汽油车和 2004 年以后的柴油车普遍支持 CAN 协议（ATSP6/ATSP7）
 6. **Demo 模式限制**：模拟数据仅供体验，车速和 RPM 等参数为随机生成，不代表真实车辆状态
-7. **加密密钥**：默认密钥 `CBF7E7C` 适用于多数 STM32 芯片国产克隆适配器。标准 ELM327 适配器留空即可
+7. **加密密钥**：个别廉价 ELM327 克隆版需要动态识别并计算密钥，无需手动配置。标准 ELM327 适配器自动跳过此步骤

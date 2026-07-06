@@ -92,7 +92,6 @@ fun BluetoothScreen(
     var selectedProtocol by remember { mutableStateOf("ATSP0 (Auto)") }
     var selectedTransport by remember { mutableStateOf("SPP") }
     var ecuAddress by remember { mutableStateOf("") }
-    var cryptoKey by remember { mutableStateOf(BluetoothViewModel.DEFAULT_CRYPTO_KEY) }
     val debugLoggingEnabled by com.freeobd.app.data.remote.DebugLogger.enabledFlow.collectAsState()
 
     Scaffold(
@@ -194,7 +193,6 @@ fun BluetoothScreen(
                         selectedProtocol = selectedProtocol,
                         selectedTransport = selectedTransport,
                         ecuAddress = ecuAddress,
-                        cryptoKey = cryptoKey,
                         debugLoggingEnabled = debugLoggingEnabled,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
@@ -206,8 +204,7 @@ fun BluetoothScreen(
                                     device = device,
                                     protocol = protocolToAtCommand(selectedProtocol),
                                     ecuAddress = ecuAddress.ifBlank { null },
-                                    transportType = if (selectedTransport == "BLE") DeviceType.BLE else DeviceType.SPP,
-                                    cryptoKey = cryptoKey.ifBlank { null }
+                                    transportType = if (selectedTransport == "BLE") DeviceType.BLE else DeviceType.SPP
                                 )
                             )
                         },
@@ -225,7 +222,6 @@ fun BluetoothScreen(
                             if (open) showProtocolPicker = false
                         },
                         onEcuAddressChanged = { ecuAddress = it },
-                        onCryptoKeyChanged = { cryptoKey = it },
                         onDebugLoggingToggled = { enabled ->
                             if (enabled) {
                                 viewModel.onEvent(BluetoothEvent.EnableDebugLogging)
@@ -331,7 +327,6 @@ private fun DeviceListContent(
     selectedProtocol: String,
     selectedTransport: String,
     ecuAddress: String,
-    cryptoKey: String,
     debugLoggingEnabled: Boolean,
     showProtocolPicker: Boolean,
     showAdvancedOptions: Boolean,
@@ -343,7 +338,6 @@ private fun DeviceListContent(
     onToggleProtocolPicker: (Boolean) -> Unit,
     onToggleAdvanced: (Boolean) -> Unit,
     onEcuAddressChanged: (String) -> Unit,
-    onCryptoKeyChanged: (String) -> Unit,
     onDebugLoggingToggled: (Boolean) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -442,10 +436,8 @@ private fun DeviceListContent(
         if (showAdvancedOptions) {
             AdvancedOptions(
                 ecuAddress = ecuAddress,
-                cryptoKey = cryptoKey,
                 debugLoggingEnabled = debugLoggingEnabled,
                 onEcuAddressChanged = onEcuAddressChanged,
-                onCryptoKeyChanged = onCryptoKeyChanged,
                 onDebugLoggingToggled = onDebugLoggingToggled
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -613,10 +605,8 @@ private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
 @Composable
 private fun AdvancedOptions(
     ecuAddress: String,
-    cryptoKey: String,
     debugLoggingEnabled: Boolean,
     onEcuAddressChanged: (String) -> Unit,
-    onCryptoKeyChanged: (String) -> Unit,
     onDebugLoggingToggled: (Boolean) -> Unit
 ) {
     Card(
@@ -641,34 +631,6 @@ private fun AdvancedOptions(
                 value = ecuAddress,
                 onValueChange = onEcuAddressChanged,
                 placeholder = { Text("7DF") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Primary,
-                    unfocusedBorderColor = OnSurfaceVariant,
-                    cursorColor = Primary
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Crypto Key
-            Text(
-                "Crypto Key (AT+SETCRYPT)",
-                style = MaterialTheme.typography.labelMedium,
-                color = OnSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "For STM32-based ELM327 clones. Leave blank to skip.",
-                style = MaterialTheme.typography.labelSmall,
-                color = OnSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = cryptoKey,
-                onValueChange = onCryptoKeyChanged,
-                placeholder = { Text(BluetoothViewModel.DEFAULT_CRYPTO_KEY) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(

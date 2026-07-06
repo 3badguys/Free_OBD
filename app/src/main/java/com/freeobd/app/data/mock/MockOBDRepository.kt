@@ -38,9 +38,27 @@ class MockOBDRepository : OBDRepository {
         DebugLogger.tx("ATL0"); delay(50); DebugLogger.rx("OK")
         DebugLogger.tx("ATRV"); delay(50); DebugLogger.rx("13.8V")
         DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
-        DebugLogger.tx("AT+VERSION"); delay(50); DebugLogger.rx("ELM327 v2.1")
-        if (!cryptoKey.isNullOrBlank()) {
-            DebugLogger.tx("AT+SETCRYPT$cryptoKey"); delay(50); DebugLogger.rx("OK")
+        // Simulate Yuming Electronics adapter with crypto challenge.
+        // Uses the same YMOBDCrypto pipeline as the real ELM327Initializer
+        // so both code paths are exercised.
+        val yumingResponse = buildString {
+            appendLine("Shenzhen Yuming Electronics Co., Ltd.")
+            appendLine("version:V1.0.0")
+            appendLine("device type:B02-Z")
+            appendLine("device name:OBDII")
+            appendLine("device mac:27:5A:C0:29:AD:5D")
+            appendLine("interface:v2.1")
+            appendLine("cust id:NONE")
+            append("crypt:844C10BB")
+        }
+        DebugLogger.tx("AT+VERSION"); delay(50); DebugLogger.rx(yumingResponse)
+        val responseBytes = yumingResponse.toByteArray(Charsets.US_ASCII)
+        if (com.freeobd.app.data.remote.YMOBDCrypto.isYumingAdapter(responseBytes)) {
+            val challenge = com.freeobd.app.data.remote.YMOBDCrypto.extractCryptChallenge(responseBytes)
+            if (challenge != null) {
+                val key = com.freeobd.app.data.remote.YMOBDCrypto.generateKey(challenge)
+                DebugLogger.tx("AT+SETCRYPT$key"); delay(50); DebugLogger.rx("OK")
+            }
         }
         DebugLogger.tx(protocol); delay(50); DebugLogger.rx("OK")
         return Result.success(Unit)
