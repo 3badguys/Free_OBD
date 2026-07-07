@@ -227,46 +227,90 @@ class OBDRepositoryImpl(
     override suspend fun readPendingDTCs(): Result<List<DTC>> =
         readDTCsFromMode("07", DTCStatus.PENDING)
 
-    // ── Mode 09: Vehicle Information ───────────────────────
-    override suspend fun readVehicleInfo(): Result<VehicleInfo> {
+    // ── Mode 09: InfoType discovery ──────────────────────
+
+    override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
         return runCatching {
-            // VIN (Mode 09 PID 02)
-            val vin = readOptional {
-                val rawBytes = requireQueue().sendObdCommand("0902").getOrThrow()
-                val data = extractDataBytes(rawBytes)
-                // Try multi-frame reassembly first; then fall back to raw data
-                // (skipping the PCI/record-number prefix byte that some ECUs prepend).
-                val reassembled = multiFrameHandler.processFrame(data)
-                val fromMF = reassembled?.let { String(it).trim() }
-                    ?.takeIf { it.isNotBlank() && it.length >= 10 }
-                fromMF ?: data.copyOfRange(1, data.size)
-                    .let { String(it).trim() }
-                    .takeIf { it.isNotBlank() && it.length >= 10 }
-            }
-
-            // Calibration ID (Mode 09 PID 04)
-            // Response: 49 04 [count] [16 bytes record1] [16 bytes record2] ...
-            // Each record is an ASCII calibration ID, null/space padded to 16 bytes.
-            val calIds = readOptional {
-                val rawBytes = requireQueue().sendObdCommand("0904").getOrThrow()
-                val data = extractDataBytes(rawBytes)
-                parseCalibrationIds(data)
-            } ?: emptyList()
-
-            // CVN (Mode 09 PID 06)
-            // Response: 49 06 [count] [record1] [record2] ...
-            // Each record is raw bytes (typically 4, but compute from data size).
-            val cvns = readOptional {
-                val rawBytes = requireQueue().sendObdCommand("0906").getOrThrow()
-                val data = extractDataBytes(rawBytes)
-                parseCvns(data)
-            } ?: emptyList()
-
-            VehicleInfo(
-                vin = vin,
-                calibrationIds = calIds,
-                cvns = cvns
+            val rawBytes = requireQueue().sendObdCommand("0900").getOrThrow()
+            val data = extractDataBytes(rawBytes)
+            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            val supported = parseInfoTypeBitmap(data)
+            VehicleInfoDiscovery(
+                rawHex = "49 00 $hex",
+                supportedTypes = supported
             )
+        }
+    }
+
+    override suspend fun readVehicleInfoType(infoType: Int): Result<String> {
+        return runCatching {
+            val command = String.format("09%02X", infoType)
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            val data = extractDataBytes(rawBytes)
+            formatInfoTypeResult(infoType, data)
+        }
+    }
+
+    /**
+     * Parse the 0900 bitmap response into a set of supported InfoType IDs.
+     * Bit 7 of byte 0 = InfoType 0x01, bit 6 = 0x02, etc.
+     */
+    private fun parseInfoTypeBitmap(data: ByteArray): Set<Int> {
+        val supported = mutableSetOf<Int>()
+        for (byteIdx in data.indices) {
+            val byte = data[byteIdx].toInt() and 0xFF
+            if (byte == 0) continue
+            for (bit in 0..7) {
+                if ((byte and (1 shl (7 - bit))) != 0) {
+                    supported.add(byteIdx * 8 + bit + 1)
+                }
+            }
+        }
+        return supported
+    }
+
+    /**
+     * Format a single InfoType's data bytes into a human-readable string.
+     * Type-specific formatting for known types; generic hex dump for others.
+     */
+    private fun formatInfoTypeResult(infoType: Int, data: ByteArray): String {
+        return when (infoType) {
+            0x02 -> { // VIN — ASCII text, skip count prefix byte
+                val payload = if (data.size > 1) data.copyOfRange(1, data.size) else data
+                String(payload, Charsets.US_ASCII).trim()
+                    .replace(" ", "").ifBlank { "—" }
+            }
+            0x04 -> { // Calibration IDs — multi-record ASCII
+                val ids = parseCalibrationIds(data)
+                ids.joinToString("\n") { it.calibrationId }.ifBlank { "—" }
+            }
+            0x06 -> { // CVN — multi-record hex
+                val cvns = parseCvns(data)
+                cvns.joinToString("\n") { it.cvn }.ifBlank { "—" }
+            }
+            0x08 -> { // In-use performance tracking
+                if (data.size <= 1) "—"
+                else data.copyOfRange(1, data.size)
+                    .joinToString(" ") { String.format("%02X", it) }
+            }
+            0x0A -> { // ECU Names — similar to calibration IDs
+                val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
+                if (count == 0 || data.size < 2) return "—"
+                // Each record is typically 20 bytes ASCII
+                val recordSize = (data.size - 1) / count
+                (0 until count).map { i ->
+                    val start = 1 + i * recordSize
+                    val end = minOf(start + recordSize, data.size)
+                    String(data.copyOfRange(start, end), Charsets.US_ASCII)
+                        .trimEnd(' ', ' ')
+                }.joinToString("\n").ifBlank { "—" }
+            }
+            else -> { // Generic: show as hex + ASCII interpretation
+                val hex = data.joinToString(" ") { String.format("%02X", it) }
+                val ascii = String(data, Charsets.US_ASCII)
+                    .replace(" ", "").trim()
+                if (ascii.isNotBlank()) "$hex  ($ascii)" else hex
+            }
         }
     }
 

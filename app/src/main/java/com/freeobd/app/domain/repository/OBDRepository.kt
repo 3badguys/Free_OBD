@@ -3,7 +3,7 @@ package com.freeobd.app.domain.repository
 import com.freeobd.app.domain.model.DTC
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.model.ProtocolInfo
-import com.freeobd.app.domain.model.VehicleInfo
+import com.freeobd.app.domain.model.VehicleInfoDiscovery
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -116,8 +116,20 @@ interface OBDRepository {
 
     // --- Mode 09: Vehicle Information ---
 
-    /** Read vehicle information including VIN, calibration IDs, and CVN. */
-    suspend fun readVehicleInfo(): Result<VehicleInfo>
+    /**
+     * Discover which Mode 09 InfoTypes the ECU supports via 0900 bitmap.
+     *
+     * @return [VehicleInfoDiscovery] with raw hex response and supported type IDs.
+     */
+    suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery>
+
+    /**
+     * Read a single Mode 09 InfoType and return the formatted result string.
+     *
+     * @param infoType The InfoType ID (e.g. 0x02 for VIN).
+     * @return Human-readable string representation of the data.
+     */
+    suspend fun readVehicleInfoType(infoType: Int): Result<String>
 
     // --- Mode 0A: Permanent DTCs ---
 

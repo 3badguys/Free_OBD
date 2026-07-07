@@ -219,30 +219,51 @@ class MockOBDRepository : OBDRepository {
     }
 
     // ── Mode 09: Vehicle Information ───────────────────────
-    override suspend fun readVehicleInfo(): Result<VehicleInfo> {
-        DebugLogger.tx("0902"); delay(100)
-        DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
-        // 0904: 2 calibration IDs, each 16 ASCII bytes (null-padded)
-        // Record 1 = "3292", Record 2 = "0-10"
-        DebugLogger.tx("0904"); delay(100)
-        DebugLogger.rx("49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00")
-        // 0906: 2 CVN records, each 4 raw bytes
-        // Record 1 = A1B2C3D4, Record 2 = E5F6A7B8
-        DebugLogger.tx("0906"); delay(100)
-        DebugLogger.rx("49 06 02 A1 B2 C3 D4 E5 F6 A7 B8")
+
+    override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
+        DebugLogger.tx("0900"); delay(100)
+        // Bitmap: InfoTypes 02, 04, 06, 0A are supported
+        // Bit 7=01,6=02,5=03,4=04,3=05,2=06,1=07,0=08 of byte 0
+        // Byte 0: 01010100 = 0x54 → bits for 02,04,06
+        // Byte 1: 00000010 = 0x02 → bit for 0A
+        DebugLogger.rx("49 00 54 02")
         return Result.success(
-            VehicleInfo(
-                vin = "1HGBH41JXMN109186",
-                calibrationIds = listOf(
-                    CalibrationId("ECM", "3292"),
-                    CalibrationId("ECM_1", "0-10")
-                ),
-                cvns = listOf(
-                    CalibrationVerificationNumber("ECM", "A1B2C3D4"),
-                    CalibrationVerificationNumber("ECM_1", "E5F6A7B8")
-                )
+            VehicleInfoDiscovery(
+                rawHex = "49 00 54 02",
+                supportedTypes = setOf(0x02, 0x04, 0x06, 0x0A)
             )
         )
+    }
+
+    override suspend fun readVehicleInfoType(infoType: Int): Result<String> {
+        val command = String.format("09%02X", infoType)
+        return when (infoType) {
+            0x02 -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
+                Result.success("1HGBH41JXMN109186")
+            }
+            0x04 -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00")
+                Result.success("3292\n0-10")
+            }
+            0x06 -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("49 06 02 A1 B2 C3 D4 E5 F6 A7 B8")
+                Result.success("A1B2C3D4\nE5F6A7B8")
+            }
+            0x0A -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+                Result.success("ECM")
+            }
+            else -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("7F 09 11")
+                Result.failure(Exception("serviceNotSupported"))
+            }
+        }
     }
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
