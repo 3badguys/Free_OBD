@@ -8,13 +8,14 @@ import kotlinx.coroutines.delay
  *  1. ATZ            — Full reset (clears previous session state)
  *  2. ATE0           — Disable command echo
  *  3. ATL0           — Disable line feeds
- *  4. ATRV           — Voltage check (non-critical)
- *  5. ATI            — Firmware version (non-critical, useful for debugging)
- *  6. AT+VERSION     — Extended version info; auto-detects Yuming crypto handshake
- *  7. AT+SETCRYPT    — Auto-computed for Yuming adapters, or manual override (non-critical)
- *  8. ATSPx          — Protocol selection
- *  9. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
- * 10. ATSH           — ECU header address (optional)
+ *  4. AT+VERSION     — Extended version info; auto-detects Yuming crypto handshake
+ *  5. AT+SETCRYPT    — Auto-computed for Yuming adapters, or manual override (non-critical)
+ *  6. ATSPx          — Protocol selection
+ *  7. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
+ *  8. ATSH           — ECU header address (optional)
+ *
+ * Note: ATRV and ATI are queried after connection by BluetoothViewModel
+ * for UI display. Including them here would double-send both commands.
  */
 class ELM327Initializer(
     private val commandQueue: ObdCommandQueue
@@ -86,14 +87,10 @@ class ELM327Initializer(
         // Step 3: Disable line feed
         steps.add(InitStep("ATL0 (disable line feed)", "ATL0", 200L))
 
-        // Step 4: Read voltage — quick check that the OBD port has power.
-        // Non-critical; failure here doesn't abort init.
-        steps.add(InitStep("ATRV (voltage check)", "ATRV", 200L, critical = false))
-
-        // Step 5: Read firmware version — useful for debugging adapter issues.
-        steps.add(InitStep("ATI (firmware info)", "ATI", 200L, critical = false))
-
-        // Step 6: Read extended version info.
+        // Step 4: Read extended version info.
+        // ATRV and ATI are NOT included here — they are queried after
+        // connection by BluetoothViewModel for UI display. Including them
+        // here would double-send them, wasting ~400ms in the connection flow.
         // If the adapter identifies as Shenzhen Yuming Electronics, the
         // crypt: challenge is extracted and the SETCRYPT key is computed
         // automatically (see YMOBDCrypto). A manual cryptoKey override

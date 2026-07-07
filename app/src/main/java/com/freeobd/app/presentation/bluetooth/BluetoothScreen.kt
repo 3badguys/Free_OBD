@@ -806,8 +806,8 @@ private fun ConnectedContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         FeatureCard(
-            title = "Live Data Dashboard",
-            description = "Real-time sensor gauges with customizable display",
+            title = "Dashboard",
+            description = "Real-time sensor gauges — up to 6 customizable displays",
             icon = Icons.Default.Dashboard,
             onClick = onNavigateToDashboard
         )

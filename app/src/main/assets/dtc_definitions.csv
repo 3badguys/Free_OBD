@@ -125,4 +125,285 @@ C0035,Left Front Wheel Speed Sensor Circuit Malfunction,C,ABS,High
 C0040,Right Front Wheel Speed Sensor Circuit Malfunction,C,ABS,High
 C0045,Left Rear Wheel Speed Sensor Circuit Malfunction,C,ABS,High
 C0050,Right Rear Wheel Speed Sensor Circuit Malfunction,C,ABS,High
+C0050,Right Rear Wheel Speed Sensor Circuit Malfunction,C,ABS,High
 C1200,ABS Inlet Valve Coil Front Circuit Failure,C,ABS,High
+P0607,Control Module Performance,P,ECU,Critical
+P0610,Control Module Vehicle Options Error,P,ECU,Low
+P0621,Generator Lamp L-Control Circuit Malfunction,P,Electrical,Medium
+P062F,Internal Control Module EEPROM Error,P,ECU,Critical
+P0630,VIN Not Programmed Or Incompatible,P,ECU,Critical
+P0638,Throttle Actuator Control Range/Performance,P,Fuel/Air,High
+P0641,Sensor Reference Voltage A Circuit Open,P,Electrical,Medium
+P0642,Sensor Reference Voltage A Circuit Low,P,Electrical,Medium
+P0643,Sensor Reference Voltage A Circuit High,P,Electrical,Medium
+P0651,Sensor Reference Voltage B Circuit Open,P,Electrical,Medium
+P0656,Fuel Level Output Circuit Malfunction,P,Electrical,Low
+P0660,Intake Manifold Tuning Valve Control Circuit Open,P,Fuel/Air,Low
+P0685,ECM/PCM Power Relay Control Circuit Open,P,ECU,Critical
+P0688,ECM/PCM Power Relay Sense Circuit Open,P,ECU,Critical
+P0691,Fan 1 Control Circuit Low,P,Cooling,Medium
+P0692,Fan 1 Control Circuit High,P,Cooling,Medium
+P0701,Transmission Control System Range/Performance,P,Transmission,Medium
+P0710,Transmission Fluid Temperature Sensor Circuit,P,Transmission,Medium
+P0711,Transmission Fluid Temperature Sensor Range/Performance,P,Transmission,Low
+P0716,Input/Turbine Speed Sensor Circuit Range/Performance,P,Transmission,High
+P0717,Input/Turbine Speed Sensor Circuit No Signal,P,Transmission,High
+P0727,Engine Speed Input Circuit No Signal,P,Transmission,High
+P0731,Gear 1 Incorrect Ratio,P,Transmission,Medium
+P0732,Gear 2 Incorrect Ratio,P,Transmission,Medium
+P0733,Gear 3 Incorrect Ratio,P,Transmission,Medium
+P0734,Gear 4 Incorrect Ratio,P,Transmission,Medium
+P0735,Gear 5 Incorrect Ratio,P,Transmission,Medium
+P0748,Pressure Control Solenoid A Electrical,P,Transmission,Medium
+P0750,Shift Solenoid A Malfunction,P,Transmission,High
+P0753,Shift Solenoid A Electrical,P,Transmission,High
+P0755,Shift Solenoid B Malfunction,P,Transmission,High
+P0760,Shift Solenoid C Malfunction,P,Transmission,High
+P0776,Pressure Control Solenoid B Performance/Stuck Off,P,Transmission,Medium
+P0796,Pressure Control Solenoid C Performance/Stuck Off,P,Transmission,Medium
+P0830,Clutch Pedal Switch A Circuit,P,Transmission,Low
+P0850,Park/Neutral Switch Input Circuit,P,Transmission,Low
+P0A0D,High Voltage System Interlock Circuit High,P,Hybrid,High
+P0A0F,Engine Failed to Start,P,Hybrid,Critical
+P0A7A,Generator Inverter Performance,P,Hybrid,Critical
+P0A80,Replace Hybrid Battery Pack,P,Hybrid,Critical
+P0AA6,Hybrid Battery Voltage System Isolation Fault,P,Hybrid,Critical
+P0AC4,Hybrid Powertrain Control Module Requested MIL Illumination,P,Hybrid,High
+P2002,Diesel Particulate Filter Efficiency Below Threshold,P,Emissions,Medium
+P2004,Intake Manifold Runner Control Stuck Open,P,Fuel/Air,Low
+P2005,Intake Manifold Runner Control Stuck Closed,P,Fuel/Air,Low
+P2008,Intake Manifold Runner Control Circuit/Open,P,Fuel/Air,Low
+P2009,Intake Manifold Runner Control Circuit Low,P,Fuel/Air,Low
+P2015,Intake Manifold Runner Position Sensor Range/Performance,P,Fuel/Air,Low
+P2021,Intake Manifold Runner Position Sensor Circuit Low,P,Fuel/Air,Low
+P2096,Post Catalyst Fuel Trim System Too Lean Bank 1,P,Emissions,Medium
+P2097,Post Catalyst Fuel Trim System Too Rich Bank 1,P,Emissions,Medium
+P2098,Post Catalyst Fuel Trim System Too Lean Bank 2,P,Emissions,Medium
+P2100,Throttle Actuator Control Motor Circuit Open,P,Fuel/Air,Critical
+P2101,Throttle Actuator Control Motor Circuit Range/Performance,P,Fuel/Air,Critical
+P2108,Throttle Actuator Control Module Performance,P,Fuel/Air,Critical
+P2110,Throttle Actuator Control System Forced Limited RPM,P,Fuel/Air,Critical
+P2119,Throttle Actuator Control Throttle Body Range/Performance,P,Fuel/Air,High
+P2122,Accelerator Pedal Position Sensor A Circuit Low,P,Fuel/Air,High
+P2123,Accelerator Pedal Position Sensor A Circuit High,P,Fuel/Air,High
+P2127,Accelerator Pedal Position Sensor E Circuit Low,P,Fuel/Air,High
+P2135,Throttle/Pedal Position Sensor A/B Voltage Correlation,P,Fuel/Air,High
+P2138,Accelerator Pedal Position Sensor D/E Voltage Correlation,P,Fuel/Air,High
+P2181,Cooling System Performance,P,Cooling,Medium
+P2187,System Too Lean at Idle Bank 1,P,Fuel/Air,Medium
+P2188,System Too Rich at Idle Bank 1,P,Fuel/Air,Medium
+P2195,O₂ Sensor Signal Stuck Lean Bank 1 Sensor 1,P,Emissions,Medium
+P2196,O₂ Sensor Signal Stuck Rich Bank 1 Sensor 1,P,Emissions,Medium
+P2237,O₂ Sensor Positive Current Control Circuit Open Bank 1 Sensor 1,P,Emissions,Medium
+P2238,O₂ Sensor Positive Current Control Circuit Low Bank 1 Sensor 1,P,Emissions,Medium
+P2270,O₂ Sensor Signal Stuck Lean Bank 1 Sensor 2,P,Emissions,Low
+P2271,O₂ Sensor Signal Stuck Rich Bank 1 Sensor 2,P,Emissions,Low
+P2279,Intake Air System Leak,P,Fuel/Air,Medium
+P2293,Fuel Pressure Regulator 2 Performance,P,Fuel/Air,Medium
+P229F,NOx Sensor Circuit Range/Performance Bank 1 Sensor 2,P,Emissions,Medium
+P2300,Ignition Coil A Primary Control Circuit Low,P,Ignition,High
+P2301,Ignition Coil A Primary Control Circuit High,P,Ignition,High
+P242F,Diesel Particulate Filter Restriction Ash Accumulation,P,Emissions,Low
+P2453,Diesel Particulate Filter Pressure Sensor A Circuit Range/Performance,P,Emissions,Medium
+P2454,Diesel Particulate Filter Pressure Sensor A Circuit Low,P,Emissions,Medium
+P2463,Diesel Particulate Filter Restriction Soot Accumulation,P,Emissions,Medium
+P2509,ECM/PCM Power Input Signal Intermittent,P,ECU,Critical
+P2539,Low Pressure Fuel System Sensor Circuit,P,Fuel/Air,Medium
+P2562,Turbocharger Boost Control Position Sensor Circuit,P,Fuel/Air,Medium
+P2563,Turbocharger Boost Control Position Sensor Range/Performance,P,Fuel/Air,Medium
+P2610,ECM/PCM Internal Engine Off Timer Performance,P,ECU,Low
+P2635,Fuel Pump A Low Flow/Performance,P,Fuel/Air,Medium
+P2646,A Rocker Arm Actuator System Performance/Stuck Off,P,Engine,High
+P2647,A Rocker Arm Actuator System Stuck On,P,Engine,High
+P2800,Transmission Range Sensor B Circuit,P,Transmission,Medium
+U0102,Lost Communication With Transfer Case Control Module,U,Network,Medium
+U0103,Lost Communication With Gear Shift Control Module,U,Network,Medium
+U0111,Lost Communication With Battery Energy Control Module A,U,Network,High
+U0126,Lost Communication With Steering Angle Sensor Module,U,Network,High
+U0141,Lost Communication With Body Control Module A,U,Network,Medium
+U0164,Lost Communication With HVAC Control Module,U,Network,Low
+U0184,Lost Communication With Radio,U,Network,Low
+U0199,Lost Communication With Door Control Module A,U,Network,Low
+U0402,Invalid Data Received From Transmission Control Module,U,Network,High
+U0415,Invalid Data Received From ABS Control Module,U,Network,High
+U0422,Invalid Data Received From Body Control Module,U,Network,Medium
+P0010,A Camshaft Position Actuator Circuit Open Bank 1,P,Engine,High
+P0011,A Camshaft Position Timing Over-Advanced Bank 1,P,Engine,Medium
+P0012,A Camshaft Position Timing Over-Retarded Bank 1,P,Engine,Medium
+P0013,B Camshaft Position Actuator Circuit Open Bank 1,P,Engine,High
+P0014,B Camshaft Position Timing Over-Advanced Bank 1,P,Engine,Medium
+P0016,Crankshaft/Camshaft Position Correlation Bank 1 Sensor A,P,Engine,Critical
+P0017,Crankshaft/Camshaft Position Correlation Bank 1 Sensor B,P,Engine,Critical
+P0020,A Camshaft Position Actuator Circuit Open Bank 2,P,Engine,High
+P0087,Fuel Rail/System Pressure Too Low,P,Fuel/Air,Critical
+P0088,Fuel Rail/System Pressure Too High,P,Fuel/Air,Critical
+P0089,Fuel Pressure Regulator 1 Performance,P,Fuel/Air,Medium
+P0090,Fuel Pressure Regulator 1 Control Circuit Open,P,Fuel/Air,High
+P0104,Mass Air Flow Circuit Intermittent,P,Fuel/Air,Low
+P0139,O₂ Sensor Circuit Slow Response Bank 1 Sensor 2,P,Emissions,Low
+P0140,O₂ Sensor Circuit No Activity Detected Bank 1 Sensor 2,P,Emissions,Medium
+P0150,O₂ Sensor Circuit Malfunction Bank 2 Sensor 1,P,Emissions,High
+P0151,O₂ Sensor Circuit Low Voltage Bank 2 Sensor 1,P,Emissions,High
+P0152,O₂ Sensor Circuit High Voltage Bank 2 Sensor 1,P,Emissions,High
+P0153,O₂ Sensor Circuit Slow Response Bank 2 Sensor 1,P,Emissions,Medium
+P0154,O₂ Sensor Circuit No Activity Detected Bank 2 Sensor 1,P,Emissions,High
+P0155,O₂ Sensor Heater Circuit Malfunction Bank 2 Sensor 1,P,Emissions,Medium
+P0156,O₂ Sensor Circuit Malfunction Bank 2 Sensor 2,P,Emissions,Medium
+P0157,O₂ Sensor Circuit Low Voltage Bank 2 Sensor 2,P,Emissions,Medium
+P0158,O₂ Sensor Circuit High Voltage Bank 2 Sensor 2,P,Emissions,Medium
+P0161,O₂ Sensor Heater Circuit Malfunction Bank 2 Sensor 2,P,Emissions,Medium
+P0170,Fuel Trim Malfunction Bank 1,P,Fuel/Air,Medium
+P0190,Fuel Rail Pressure Sensor Circuit Malfunction,P,Fuel/Air,High
+P0191,Fuel Rail Pressure Sensor Circuit Range/Performance,P,Fuel/Air,Medium
+P0192,Fuel Rail Pressure Sensor Circuit Low Input,P,Fuel/Air,Medium
+P0193,Fuel Rail Pressure Sensor Circuit High Input,P,Fuel/Air,Medium
+P0200,Injector Control Circuit Malfunction,P,Fuel/Air,Critical
+P0220,Throttle/Pedal Position Sensor B Circuit Malfunction,P,Fuel/Air,High
+P0221,Throttle/Pedal Position Sensor B Circuit Range/Performance,P,Fuel/Air,Medium
+P0230,Fuel Pump Primary Circuit Malfunction,P,Fuel/Air,Critical
+P0243,Turbocharger Wastegate Solenoid A Malfunction,P,Fuel/Air,High
+P0261,Cylinder 1 Injector Circuit Low,P,Fuel/Air,High
+P0264,Cylinder 2 Injector Circuit Low,P,Fuel/Air,High
+P0267,Cylinder 3 Injector Circuit Low,P,Fuel/Air,High
+P0270,Cylinder 4 Injector Circuit Low,P,Fuel/Air,High
+P0299,Turbocharger/Supercharger Underboost Condition,P,Fuel/Air,Medium
+P0316,Engine Misfire Detected on Startup First 1000 Revolutions,P,Ignition,Medium
+P0403,EGR Control Circuit Malfunction,P,Emissions,Medium
+P0405,EGR Sensor A Circuit Low,P,Emissions,Low
+P0406,EGR Sensor A Circuit High,P,Emissions,Low
+P0422,Main Catalyst Efficiency Below Threshold Bank 1,P,Emissions,Low
+P0443,EVAP Purge Control Valve Circuit Malfunction,P,Emissions,Medium
+P0449,EVAP Vent Control Circuit Malfunction,P,Emissions,Medium
+P0457,EVAP System Leak Detected Fuel Cap Loose/Off,P,Emissions,Low
+P0460,Fuel Level Sensor Circuit Malfunction,P,Fuel/Air,Low
+P0462,Fuel Level Sensor Circuit Low Input,P,Fuel/Air,Low
+P0463,Fuel Level Sensor Circuit High Input,P,Fuel/Air,Low
+P0480,Cooling Fan 1 Control Circuit Malfunction,P,Cooling,Medium
+P0481,Cooling Fan 2 Control Circuit Malfunction,P,Cooling,Low
+P0501,Vehicle Speed Sensor Range/Performance,P,Transmission,Medium
+P0513,Incorrect Immobilizer Key,P,Security,High
+P0520,Engine Oil Pressure Sensor/Switch Circuit Malfunction,P,Engine,Critical
+P0522,Engine Oil Pressure Sensor/Switch Circuit Low Voltage,P,Engine,Critical
+P0532,A/C Refrigerant Pressure Sensor A Circuit Low,P,HVAC,Low
+P0560,System Voltage Malfunction,P,Electrical,Medium
+P0562,System Voltage Low,P,Electrical,Low
+P0563,System Voltage High,P,Electrical,Low
+P0571,Brake Switch A Circuit Malfunction,P,Brakes,Low
+P0603,Internal Control Module KAM Error,P,ECU,Critical
+P0604,Internal Control Module RAM Error,P,ECU,Critical
+P0605,Internal Control Module ROM Error,P,ECU,Critical
+P0615,Starter Relay Control Circuit Open,P,Electrical,Medium
+P0616,Starter Relay Control Circuit Low,P,Electrical,Medium
+P061B,Internal Control Module Torque Calculation Performance,P,ECU,High
+P0627,Fuel Pump A Control Circuit Open,P,Fuel/Air,High
+P0628,Fuel Pump A Control Circuit Low,P,Fuel/Air,High
+P0639,Throttle Actuator Control Range/Performance Bank 2,P,Fuel/Air,High
+P0645,A/C Clutch Relay Control Circuit,P,HVAC,Low
+P068A,ECM/PCM Power Relay De-Energized Too Early,P,ECU,Medium
+P069E,Fuel Pump Control Module Requested MIL Illumination,P,Fuel/Air,High
+P0702,Transmission Control System Electrical,P,Transmission,High
+P0721,Output Speed Sensor Range/Performance,P,Transmission,Medium
+P0743,Torque Converter Clutch Circuit Electrical,P,Transmission,Medium
+P0751,Shift Solenoid A Performance/Stuck Off,P,Transmission,High
+P0758,Shift Solenoid B Electrical,P,Transmission,High
+P0761,Shift Solenoid C Performance/Stuck Off,P,Transmission,High
+P0777,Pressure Control Solenoid B Stuck On,P,Transmission,Medium
+P0805,Clutch Position Sensor Circuit,P,Transmission,Low
+P0810,Clutch Position Control Error,P,Transmission,Low
+P0842,Transmission Fluid Pressure Sensor/Switch A Circuit Low,P,Transmission,Medium
+P0851,Park/Neutral Switch Input Circuit Low,P,Transmission,Low
+P0852,Park/Neutral Switch Input Circuit High,P,Transmission,Low
+P0880,TCM Power Input Signal,P,Transmission,High
+P0882,TCM Power Input Signal Low,P,Transmission,High
+P0A08,DC/DC Converter Status Circuit,P,Hybrid,High
+P0A09,DC/DC Converter Status Circuit Low,P,Hybrid,High
+P0A0A,High Voltage System Interlock Circuit,P,Hybrid,Critical
+P0A1F,Battery Energy Control Module,P,Hybrid,High
+P0AFA,Hybrid Battery System Voltage Low,P,Hybrid,Critical
+P1A15,Hybrid Battery Contactor Control Circuit Low,P,Hybrid,Critical
+P2006,Intake Manifold Runner Control Stuck Closed Bank 1,P,Fuel/Air,Medium
+P2007,Intake Manifold Runner Control Stuck Open Bank 2,P,Fuel/Air,Medium
+P2030,Reductant Injection Valve Circuit Open,P,Emissions,Medium
+P2033,Exhaust Gas Temperature Sensor Circuit High Bank 1 Sensor 1,P,Emissions,Medium
+P2047,Reductant Injection Valve Circuit Open Bank 1 Unit 1,P,Emissions,Medium
+P204F,Reductant System Performance,P,Emissions,Medium
+P2080,Exhaust Gas Temperature Sensor Circuit Range/Performance Bank 1 Sensor 1,P,Emissions,Medium
+P2084,Exhaust Gas Temperature Sensor Circuit Range/Performance Bank 1 Sensor 2,P,Emissions,Medium
+P2099,Post Catalyst Fuel Trim System Too Rich Bank 2,P,Emissions,Medium
+P2106,Throttle Actuator Control System Forced Limited Power,P,Fuel/Air,Critical
+P2111,Throttle Actuator Control System Stuck Open,P,Fuel/Air,Critical
+P2120,Accelerator Pedal Position Sensor A Circuit,P,Fuel/Air,High
+P2128,Accelerator Pedal Position Sensor E Circuit High,P,Fuel/Air,High
+P2130,Accelerator Pedal Position Sensor D Circuit,P,Fuel/Air,High
+P2160,Vehicle Speed Sensor B Circuit Low,P,Transmission,Low
+P2176,Throttle Actuator Control System Idle Position Not Learned,P,Fuel/Air,Medium
+P2185,Engine Coolant Temperature Sensor 2 Circuit High,P,Cooling,Low
+P219A,Fuel Air Ratio Imbalance Across Cylinders,P,Fuel/Air,Medium
+P219B,Fuel Air Ratio Imbalance Bank 1,P,Fuel/Air,Medium
+P2226,Barometric Pressure Circuit Malfunction,P,Fuel/Air,Low
+P2228,Barometric Pressure Circuit Low,P,Fuel/Air,Low
+P2240,O₂ Sensor Pumping Current Trim Circuit Open Bank 1 Sensor 1,P,Emissions,Medium
+P2263,Turbocharger/Supercharger Boost System Performance,P,Fuel/Air,Medium
+P2282,Air Leak Between Throttle Body and Intake Valves,P,Fuel/Air,Medium
+P2297,O₂ Sensor Out of Range During Deceleration Bank 1 Sensor 1,P,Emissions,Medium
+P229E,NOx Sensor Circuit Bank 1 Sensor 2,P,Emissions,Medium
+P2303,Ignition Coil B Primary Control Circuit Low,P,Ignition,High
+P2305,Ignition Coil B Secondary Circuit Insufficient Ionization,P,Ignition,High
+P2311,Ignition Coil D Primary Control Circuit Low,P,Ignition,High
+P2400,Evaporative Emission System Leak Detection Pump Control Circuit Open,P,Emissions,Medium
+P2404,Evaporative Emission System Leak Detection Pump Sense Circuit Range/Performance,P,Emissions,Medium
+P244A,Diesel Particulate Filter Differential Pressure Too Low Bank 1,P,Emissions,Medium
+P2459,Diesel Particulate Filter Regeneration Frequency,P,Emissions,Low
+P246C,Diesel Particulate Filter Restriction Forced Limited Power,P,Emissions,Medium
+P2500,Generator Lamp/L-Terminal Circuit Low,P,Electrical,Medium
+P2503,Charging System Voltage Low,P,Electrical,Low
+P2504,Charging System Voltage High,P,Electrical,Low
+P250A,Engine Oil Level Sensor Circuit,P,Engine,Low
+P250F,Engine Oil Level Too Low,P,Engine,Medium
+P252F,Engine Oil Level Too High,P,Engine,Low
+P2540,Low Pressure Fuel System Sensor Circuit Range/Performance,P,Fuel/Air,Medium
+P2552,Throttle/Fuel Inhibit Circuit,P,Fuel/Air,Critical
+P2560,Engine Coolant Level Low,P,Cooling,Low
+P2564,Turbocharger Boost Control Position Sensor Circuit Low,P,Fuel/Air,Medium
+P2565,Turbocharger Boost Control Position Sensor Circuit High,P,Fuel/Air,Medium
+P2600,Coolant Pump Control Circuit Open,P,Cooling,Medium
+P2601,Coolant Pump Control Circuit Range/Performance,P,Cooling,Low
+P2602,Coolant Pump Control Circuit Low,P,Cooling,Medium
+P2603,Coolant Pump Control Circuit High,P,Cooling,Medium
+P260F,Evaporative System Monitoring Processor Performance,P,Emissions,Low
+P2614,Camshaft Position Output Circuit Open,P,Engine,Medium
+P2626,O₂ Sensor Pumping Current Trim Circuit Open Bank 1 Sensor 1,P,Emissions,Medium
+P2636,Fuel Pump B Low Flow/Performance,P,Fuel/Air,Medium
+P2645,A Rocker Arm Actuator Control Circuit Open,P,Engine,High
+P268A,Fuel Injector Calibration Not Learned,P,Fuel/Air,Low
+P2700,Transmission Friction Element A Apply Time Range/Performance,P,Transmission,Medium
+P2714,Pressure Control Solenoid D Performance/Stuck Off,P,Transmission,Medium
+P2716,Pressure Control Solenoid D Electrical,P,Transmission,Medium
+P2720,Pressure Control Solenoid D Control Circuit Low,P,Transmission,Medium
+P2764,Torque Converter Clutch Pressure Control Solenoid Circuit Low,P,Transmission,Medium
+P2A00,O₂ Sensor Circuit Range/Performance Bank 1 Sensor 1,P,Emissions,Medium
+P2A01,O₂ Sensor Circuit Range/Performance Bank 1 Sensor 2,P,Emissions,Low
+U0073,Control Module Communication Bus A Off,U,Network,Critical
+U0104,Lost Communication With Cruise Control Module,U,Network,Low
+U0109,Lost Communication With Fuel Pump Control Module,U,Network,High
+U0122,Lost Communication With Vehicle Dynamics Control Module,U,Network,High
+U0131,Lost Communication With Power Steering Control Module,U,Network,Medium
+U0146,Lost Communication With Gateway A,U,Network,Medium
+U0156,Lost Communication With Information Center B,U,Network,Low
+U0167,Lost Communication With Vehicle Immobilizer Control Module,U,Network,High
+U0182,Lost Communication With Lighting Control Module Front,U,Network,Low
+U0233,Lost Communication With Obstacle Detection Control Module Left,U,Network,Low
+U029D,Lost Communication With NOx Sensor A,U,Network,Medium
+U0400,Invalid Data Received,U,Network,High
+U0405,Invalid Data Received From Cruise Control Module,U,Network,Low
+U0418,Invalid Data Received From Brake System Control Module,U,Network,High
+U0420,Invalid Data Received From Power Steering Control Module,U,Network,Medium
+U0423,Invalid Data Received From Instrument Panel Control Module,U,Network,Low
+U0432,Invalid Data Received From Multi-Axis Acceleration Sensor Module,U,Network,Low
+B0001,Driver Frontal Deployment Control Circuit Open,B,Airbag,Critical
+B0010,Passenger Frontal Deployment Control,B,Airbag,Critical
+B0020,Left Side Airbag Deployment Control,B,Airbag,Critical
+B0081,Passenger Seatbelt Load Limiter Deployment Control,B,Airbag,High
+B0090,Left Seatbelt Pretensioner Deployment Control,B,Airbag,High
+B0095,Right Seatbelt Pretensioner Deployment Control,B,Airbag,High
+B1000,Electronic Control Unit Malfunction,B,Body,High

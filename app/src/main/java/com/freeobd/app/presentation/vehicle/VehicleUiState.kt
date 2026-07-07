@@ -12,9 +12,7 @@ package com.freeobd.app.presentation.vehicle
 data class VehicleUiState(
     val bitmapHex: String = "",
     val supportedTypes: Set<Int> = emptySet(),
-    val typeStates: List<VehicleInfoTypeState> = VehicleInfoTypeMeta.ALL.map { meta ->
-        VehicleInfoTypeState(meta = meta, isSupported = false)
-    },
+    val typeStates: List<VehicleInfoTypeState> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
     /** InfoType to scroll to after layout (consumed on first render). */

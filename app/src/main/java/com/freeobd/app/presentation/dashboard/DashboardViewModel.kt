@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.repository.OBDRepository
-import com.freeobd.app.domain.usecase.DiscoverPIDsUseCase
 import com.freeobd.app.domain.usecase.ReadLiveDataUseCase
 import com.freeobd.app.utils.collectSafely
 import kotlinx.coroutines.*
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.*
  */
 class DashboardViewModel(
     private val readLiveDataUseCase: ReadLiveDataUseCase,
-    private val discoverPIDsUseCase: DiscoverPIDsUseCase,
     private val obdRepository: OBDRepository
 ) : ViewModel() {
 
@@ -42,6 +40,10 @@ class DashboardViewModel(
 
     private var pollingJob: Job? = null
     private var pollingIntervalMs: Long = 250
+
+    companion object {
+        const val MAX_GAUGES = 6
+    }
 
     // Latest known values (preserved across start/stop)
     private val lastValues = mutableMapOf<Int, OBDData>()
@@ -113,6 +115,8 @@ class DashboardViewModel(
     }
 
     private fun addPid(pidId: Int) {
+        val current = _selectedPids.value
+        if (current.size >= MAX_GAUGES) return
         _selectedPids.update { it + pidId }
         restartIfPolling()
     }

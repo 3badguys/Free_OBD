@@ -41,7 +41,7 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Live Data") },
+                title = { Text("Dashboard") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -239,7 +239,7 @@ private fun PidPickerSheet(
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Select Gauges",
+                "Select Gauges (${selectedPids.size}/6)",
                 style = MaterialTheme.typography.titleMedium,
                 color = OnBackground
             )
@@ -272,8 +272,10 @@ private fun PidPickerSheet(
                                 color = OnSurfaceVariant
                             )
                         }
+                        val atLimit = !isSelected && selectedPids.size >= 6
                         Switch(
                             checked = isSelected,
+                            enabled = !atLimit,
                             onCheckedChange = { checked ->
                                 if (checked) onAddPid(pidId) else onRemovePid(pidId)
                             },

@@ -2,14 +2,17 @@ package com.freeobd.app.presentation.vehicle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.local.AppDatabase
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class VehicleViewModel(
-    private val obdRepository: OBDRepository
+    private val obdRepository: OBDRepository,
+    private val database: AppDatabase
 ) : ViewModel() {
 
     private val activeRepo get() = DemoModeState.current ?: obdRepository
@@ -17,23 +20,28 @@ class VehicleViewModel(
     private val _uiState = MutableStateFlow(VehicleUiState())
     val uiState: StateFlow<VehicleUiState> = _uiState.asStateFlow()
 
+    /** InfoType metadata loaded from pid_definitions.json (mode 9). */
+    private var infoTypeMeta: Map<Int, VehicleInfoTypeMeta> = emptyMap()
+
     fun onEvent(event: VehicleEvent) {
         when (event) {
-            VehicleEvent.Load -> loadVehicleInfo()
+            VehicleEvent.Load -> load()
             is VehicleEvent.ScrollToType -> {
                 _uiState.value = _uiState.value.copy(scrollToInfoType = event.infoType)
             }
         }
     }
 
-    /** Called by the Screen after consuming a scroll event. */
     fun onScrollConsumed() {
         _uiState.value = _uiState.value.copy(scrollToInfoType = null)
     }
 
-    private fun loadVehicleInfo() {
+    private fun load() {
         viewModelScope.launch {
             _uiState.value = VehicleUiState(isLoading = true)
+
+            // Load metadata once from DB
+            if (infoTypeMeta.isEmpty()) loadInfoTypeMeta()
 
             // Step 1: Discover supported InfoTypes via 0900
             val discovery = activeRepo.discoverVehicleInfoTypes().getOrElse { error ->
@@ -44,17 +52,8 @@ class VehicleViewModel(
                 return@launch
             }
 
-            // Step 2: Build initial type states
-            val initialStates = VehicleInfoTypeMeta.ALL.map { meta ->
-                VehicleInfoTypeState(
-                    meta = meta,
-                    isSupported = meta.infoType in discovery.supportedTypes,
-                    result = if (meta.infoType in discovery.supportedTypes)
-                        VehicleInfoTypeResult.Loading
-                    else
-                        VehicleInfoTypeResult.Error("Not supported by ECU")
-                )
-            }
+            // Step 2: Build type states from DB metadata + bitmap result
+            val initialStates = buildTypeStates(discovery.supportedTypes)
 
             _uiState.value = VehicleUiState(
                 bitmapHex = discovery.rawHex,
@@ -63,37 +62,58 @@ class VehicleViewModel(
                 isLoading = false
             )
 
-            // Step 3: Fetch each supported InfoType in parallel.
-            val supportedMetas = VehicleInfoTypeMeta.ALL.filter {
-                it.infoType in discovery.supportedTypes
-            }
+            // Step 3: Fetch each supported InfoType in parallel
+            val supportedMetas = initialStates.filter { it.isSupported }
             if (supportedMetas.isEmpty()) return@launch
 
-            val deferred = supportedMetas.map { meta ->
-                async {
-                    meta.infoType to activeRepo.readVehicleInfoType(meta.infoType)
-                        .fold(
-                            onSuccess = { data ->
-                                VehicleInfoTypeResult.Success(data)
-                            },
-                            onFailure = { error ->
-                                VehicleInfoTypeResult.Error(
-                                    error.message ?: "Unknown error"
-                                )
-                            }
-                        )
-                }
+            val resultMap = coroutineScope {
+                supportedMetas.map { state ->
+                    async {
+                        state.meta.infoType to activeRepo.readVehicleInfoType(state.meta.infoType)
+                            .fold(
+                                onSuccess = { VehicleInfoTypeResult.Success(it) },
+                                onFailure = { e -> VehicleInfoTypeResult.Error(e.message ?: "Error") }
+                            )
+                    }
+                }.associate { it.await() }
             }
 
-            // Step 4: Merge results into state
-            val results = deferred.associate { it.await() }
             val current = _uiState.value
             _uiState.value = current.copy(
-                typeStates = current.typeStates.map { state ->
-                    results[state.meta.infoType]?.let { result ->
-                        state.copy(result = result)
-                    } ?: state
+                typeStates = current.typeStates.map { s ->
+                    resultMap[s.meta.infoType]?.let { s.copy(result = it) } ?: s
                 }
+            )
+        }
+    }
+
+    /**
+     * Build the full InfoType list (0x01–0x20) from DB metadata + bitmap.
+     * Types not found in the DB get a "Reserved (0xXX)" fallback.
+     */
+    private fun buildTypeStates(supported: Set<Int>): List<VehicleInfoTypeState> {
+        return (1..0x20).map { infoType ->
+            val meta = infoTypeMeta[infoType] ?: VehicleInfoTypeMeta(
+                infoType = infoType,
+                command = String.format("09%02X", infoType),
+                description = String.format("PID 0x%02X", infoType)
+            )
+            VehicleInfoTypeState(
+                meta = meta,
+                isSupported = infoType in supported,
+                result = if (infoType in supported) VehicleInfoTypeResult.Loading
+                else VehicleInfoTypeResult.Error("Not supported by ECU")
+            )
+        }
+    }
+
+    /** Load Mode 09 InfoType metadata from pid_definitions.json via Room. */
+    private suspend fun loadInfoTypeMeta() {
+        infoTypeMeta = database.pidMetadataDao().getByMode(0x09).associate { entity ->
+            entity.pidId to VehicleInfoTypeMeta(
+                infoType = entity.pidId,
+                command = String.format("09%02X", entity.pidId),
+                description = entity.name
             )
         }
     }

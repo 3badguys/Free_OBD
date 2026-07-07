@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.SupportBlockGrid
+import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
 import org.koin.androidx.compose.koinViewModel
 
@@ -139,46 +142,30 @@ private fun LiveDataContent(
                     Spacer(Modifier.height(10.dp))
                     Text("Support Status", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
-                    state.pidStates.chunked(8).forEach { rowItems ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            rowItems.forEach { ps ->
-                                val bg = if (ps.isSupported) StatusGreen.copy(alpha = 0.15f) else StatusRed.copy(alpha = 0.12f)
-                                val bd = if (ps.isSupported) StatusGreen.copy(alpha = 0.5f) else StatusRed.copy(alpha = 0.4f)
-                                Column(
-                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(4.dp)).background(bg)
-                                        .border(1.dp, bd, RoundedCornerShape(4.dp))
-                                        .then(if (ps.isSupported) Modifier.clickable {
-                                            viewModel.onEvent(LiveDataEvent.ScrollToPid(ps.pidId))
-                                        } else Modifier)
-                                        .padding(vertical = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) { Text(String.format("%02X", ps.pidId), fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace, color = OnSurfaceVariant) }
-                            }
-                            repeat(8 - rowItems.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                    }
+                    SupportBlockGrid(
+                        items = state.pidStates,
+                        idExtractor = { it.pidId },
+                        supportedExtractor = { it.isSupported },
+                        onBlockClick = { viewModel.onEvent(LiveDataEvent.ScrollToPid(it)) }
+                    )
                     Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusGreen))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Supported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusRed.copy(alpha = 0.6f)))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Unsupported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        }
-                    }
+                    SupportLegend()
                 }
             }
         }
 
         item(key = "title") { Text("PID Details", style = MaterialTheme.typography.titleMedium, color = OnBackground) }
 
-        itemsIndexed(state.pidStates, key = { _, s -> "pid_${s.pidId}" }) { _, ps -> PidCard(ps) }
+        itemsIndexed(state.pidStates, key = { _, s -> "pid_${s.pidId}" }) { _, ps ->
+            DetailCard(
+                command = String.format("01%02X", ps.pidId),
+                description = ps.description,
+                isSupported = ps.isSupported,
+                isLoading = ps.result is LiveDataPidResult.Loading,
+                resultText = (ps.result as? LiveDataPidResult.Success)?.data,
+                errorText = (ps.result as? LiveDataPidResult.Error)?.message
+            )
+        }
 
         item(key = "bottom") { Spacer(Modifier.height(16.dp)) }
     }

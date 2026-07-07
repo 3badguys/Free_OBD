@@ -28,8 +28,6 @@ class OBDRepositoryImpl(
     private var commandQueue: ObdCommandQueue? = null
     private val multiFrameHandler = MultiFrameHandler()
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val supportedPids = mutableSetOf<Int>()
-
     /** Lazy access to the command queue, creating it if needed. */
     private fun requireQueue(): ObdCommandQueue {
         val existing = commandQueue
@@ -179,30 +177,6 @@ class OBDRepositoryImpl(
         }.flowOn(Dispatchers.IO)
     }
 
-    // ── PID Discovery ──────────────────────────────────────
-    override suspend fun discoverSupportedPIDs(mode: Int): Result<Set<Int>> {
-        return runCatching {
-            val discovered = mutableSetOf<Int>()
-            var offset = 0x00
-
-            while (offset <= PIDBitmapParser.MAX_GROUP_OFFSET) {
-                val modeHex = String.format("%02X", mode)
-                val offsetHex = String.format("%02X", offset)
-                val rawBytes = requireQueue().sendObdCommand("$modeHex$offsetHex").getOrThrow()
-
-                val dataBytes = extractDataBytes(rawBytes)
-                if (PIDBitmapParser.isBitmapEmpty(dataBytes)) break
-
-                discovered.addAll(PIDBitmapParser.parse(offset, dataBytes))
-                offset = PIDBitmapParser.nextGroupOffset(offset) ?: break
-            }
-
-            supportedPids.clear()
-            supportedPids.addAll(discovered)
-            discovered
-        }
-    }
-
     // ── Mode 03: Stored DTCs ───────────────────────────────
     override suspend fun readStoredDTCs(): Result<List<DTC>> =
         readDTCsFromMode("03", DTCStatus.STORED)
@@ -222,19 +196,9 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
             val data = extractDataBytes(rawBytes)
             val hex = data.joinToString(" ") { String.format("%02X", it) }
-            val supported = mutableSetOf<Int>()
-            for (byteIdx in data.indices) {
-                val byte = data[byteIdx].toInt() and 0xFF
-                if (byte == 0) continue
-                for (bit in 0..7) {
-                    if ((byte and (1 shl (7 - bit))) != 0) {
-                        supported.add(byteIdx * 8 + bit + 1 + segment)
-                    }
-                }
-            }
             LiveDataDiscovery(
                 rawHex = "41 ${String.format("%02X", segment)} $hex",
-                supportedPids = supported
+                supportedPids = parsePidBitmap(data, segment)
             )
         }
     }
@@ -266,19 +230,9 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
             val data = extractDataBytes(rawBytes)
             val hex = data.joinToString(" ") { String.format("%02X", it) }
-            val supported = mutableSetOf<Int>()
-            for (byteIdx in data.indices) {
-                val byte = data[byteIdx].toInt() and 0xFF
-                if (byte == 0) continue
-                for (bit in 0..7) {
-                    if ((byte and (1 shl (7 - bit))) != 0) {
-                        supported.add(byteIdx * 8 + bit + 1 + segment)
-                    }
-                }
-            }
             FreezeFrameDiscovery(
                 rawHex = "42 ${String.format("%02X", segment)} ${String.format("%02X", frameNumber)} $hex",
-                supportedPids = supported
+                supportedPids = parsePidBitmap(data, segment)
             )
         }
     }
@@ -329,19 +283,7 @@ class OBDRepositoryImpl(
      * Parse the 0900 bitmap response into a set of supported InfoType IDs.
      * Bit 7 of byte 0 = InfoType 0x01, bit 6 = 0x02, etc.
      */
-    private fun parseInfoTypeBitmap(data: ByteArray): Set<Int> {
-        val supported = mutableSetOf<Int>()
-        for (byteIdx in data.indices) {
-            val byte = data[byteIdx].toInt() and 0xFF
-            if (byte == 0) continue
-            for (bit in 0..7) {
-                if ((byte and (1 shl (7 - bit))) != 0) {
-                    supported.add(byteIdx * 8 + bit + 1)
-                }
-            }
-        }
-        return supported
-    }
+    private fun parseInfoTypeBitmap(data: ByteArray): Set<Int> = parsePidBitmap(data, offset = 0)
 
     /**
      * Format a single InfoType's data bytes into a human-readable string.
@@ -628,7 +570,6 @@ class OBDRepositoryImpl(
         repositoryScope.cancel()
         commandQueue?.release()
         commandQueue = null
-        supportedPids.clear()
     }
 }
 

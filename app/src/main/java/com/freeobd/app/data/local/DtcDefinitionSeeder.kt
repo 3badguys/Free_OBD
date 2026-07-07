@@ -30,12 +30,18 @@ object DtcDefinitionSeeder {
      * @param context Application context for asset access.
      * @param database The AppDatabase instance.
      */
+    /** Bump when the CSV is expanded to force re-seed on existing installs. */
+    private const val SEED_VERSION = 3
+
     suspend fun seedIfEmpty(context: Context, database: AppDatabase): Unit =
         withContext(Dispatchers.IO) {
             val dao = database.dtcDefinitionDao()
-            if (dao.count() > 0) {
-                return@withContext // Already seeded
+            val count = dao.count()
+            // Skip if already seeded with current version data (~400+ codes)
+            if (count >= 400) {
+                return@withContext
             }
+            if (count > 0) dao.deleteAll()
             seed(context, database)
         }
 
@@ -86,10 +92,8 @@ object DtcDefinitionSeeder {
             android.util.Log.i("DtcDefinitionSeeder",
                 "Seeded $totalInserted DTC definitions")
         } catch (e: Exception) {
-            // If the CSV file is not bundled, seed with a minimal set of common codes
-            android.util.Log.w("DtcDefinitionSeeder",
-                "Could not load DTC CSV from assets, seeding minimal set: ${e.message}")
-            seedMinimalSet(database)
+            android.util.Log.e("DtcDefinitionSeeder",
+                "Could not load DTC CSV from assets: ${e.message}")
         }
     }
 
@@ -112,36 +116,4 @@ object DtcDefinitionSeeder {
         )
     }
 
-    /**
-     * Fallback: seed a minimal set of common DTC definitions.
-     * Ensures the app has basic DTC lookup even without the bundled CSV.
-     */
-    private suspend fun seedMinimalSet(database: AppDatabase) {
-        val dao = database.dtcDefinitionDao()
-        val commonCodes = listOf(
-            DtcDefinitionEntity("P0100", "Mass or Volume Air Flow Circuit Malfunction", "P", "Fuel/Air", "Medium"),
-            DtcDefinitionEntity("P0101", "Mass or Volume Air Flow Circuit Range/Performance", "P", "Fuel/Air", "Medium"),
-            DtcDefinitionEntity("P0110", "Intake Air Temperature Circuit Malfunction", "P", "Fuel/Air", "Low"),
-            DtcDefinitionEntity("P0115", "Engine Coolant Temperature Circuit Malfunction", "P", "Cooling", "Medium"),
-            DtcDefinitionEntity("P0120", "Throttle Pedal Position Sensor Circuit Malfunction", "P", "Fuel/Air", "High"),
-            DtcDefinitionEntity("P0130", "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)", "P", "Emissions", "High"),
-            DtcDefinitionEntity("P0170", "Fuel Trim Malfunction (Bank 1)", "P", "Fuel/Air", "Medium"),
-            DtcDefinitionEntity("P0300", "Random/Multiple Cylinder Misfire Detected", "P", "Ignition", "High"),
-            DtcDefinitionEntity("P0301", "Cylinder 1 Misfire Detected", "P", "Ignition", "High"),
-            DtcDefinitionEntity("P0302", "Cylinder 2 Misfire Detected", "P", "Ignition", "High"),
-            DtcDefinitionEntity("P0303", "Cylinder 3 Misfire Detected", "P", "Ignition", "High"),
-            DtcDefinitionEntity("P0304", "Cylinder 4 Misfire Detected", "P", "Ignition", "High"),
-            DtcDefinitionEntity("P0400", "Exhaust Gas Recirculation Flow Malfunction", "P", "Emissions", "Low"),
-            DtcDefinitionEntity("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", "P", "Emissions", "Medium"),
-            DtcDefinitionEntity("P0500", "Vehicle Speed Sensor Malfunction", "P", "Transmission", "High"),
-            DtcDefinitionEntity("P0600", "Serial Communication Link Malfunction", "P", "ECU", "High"),
-            DtcDefinitionEntity("P0700", "Transmission Control System Malfunction", "P", "Transmission", "High"),
-            DtcDefinitionEntity("C0035", "Left Front Wheel Speed Sensor Circuit Malfunction", "C", "ABS", "High"),
-            DtcDefinitionEntity("U0100", "Lost Communication With ECM/PCM", "U", "Network", "Critical"),
-            DtcDefinitionEntity("B1200", "Climate Control Pushbutton Circuit Failure", "B", "Body", "Low")
-        )
-        dao.insertAll(commonCodes)
-        android.util.Log.i("DtcDefinitionSeeder",
-            "Seeded ${commonCodes.size} minimal DTC definitions")
-    }
 }

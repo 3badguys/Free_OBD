@@ -11,30 +11,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.presentation.theme.*
 import kotlin.math.*
 
 /**
- * Custom Canvas-based automotive gauge widget.
+ * Automotive-style gauge widget with semi-circular arc.
  *
- * Draws a semi-circular arc with:
- * - Background track (grey arc)
- * - Active value arc (teal)
- * - Tick marks at regular intervals
- * - Needle indicator
- * - Center value label
- * - Bottom label with PID name and unit
- *
- * @param value Current numeric value to display.
- * @param label PID name label (e.g. "RPM").
- * @param unit Unit string (e.g. "rpm").
- * @param minValue Minimum scale value.
- * @param maxValue Maximum scale value.
- * @param sizeFraction Fraction of available width to use (0.0-1.0).
+ * Features:
+ * - Gradient arc (green → yellow → red) based on value position
+ * - Dark center hub with tick marks
+ * - Needle indicator with shadow
+ * - Min/max edge labels
  */
 @Composable
 fun GaugeWidget(
@@ -43,116 +33,106 @@ fun GaugeWidget(
     unit: String,
     minValue: Double = 0.0,
     maxValue: Double = 100.0,
-    modifier: Modifier = Modifier,
-    sizeFraction: Float = 0.85f
+    modifier: Modifier = Modifier
 ) {
-    val arcColor = when {
-        value > maxValue * 0.9 -> StatusRed
-        value > maxValue * 0.75 -> StatusYellow
-        else -> GaugeArc
-    }
+    val fraction = ((value - minValue) / (maxValue - minValue)).coerceIn(0.0, 1.0)
 
     Column(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(modifier = Modifier.fillMaxSize(sizeFraction)) {
-                val canvasWidth = size.width
-                val canvasHeight = size.height
-                val strokeWidth = canvasWidth * 0.10f
-                val arcSize = Size(
-                    canvasWidth - strokeWidth,
-                    canvasHeight * 2 - strokeWidth
-                )
+            Canvas(modifier = Modifier.fillMaxSize(0.82f)) {
+                val w = size.width
+                val h = size.height
+                val strokeW = w * 0.095f
+                val arcTopLeft = Offset(strokeW / 2, strokeW / 2)
+                val arcSize = Size(w - strokeW, h * 2 - strokeW)
+                val centerX = w / 2
+                val centerY = h * 0.86f
+                val radius = arcSize.width / 2
 
-                // Draw background arc (180° sweep)
+                // Background track
                 drawArc(
                     color = GaugeArcBackground,
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = false,
-                    topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    startAngle = 180f, sweepAngle = 180f,
+                    useCenter = false, topLeft = arcTopLeft, size = arcSize,
+                    style = Stroke(width = strokeW, cap = StrokeCap.Round)
                 )
 
-                // Draw active value arc
-                val sweepAngle = ((value - minValue) / (maxValue - minValue))
-                    .coerceIn(0.0, 1.0)
-                    .toFloat() * 180f
+                // Active arc with gradient
+                val sweep = (fraction * 180f).toFloat()
+                if (sweep > 0f) {
+                    val gradientBrush = Brush.sweepGradient(
+                        colors = listOf(StatusGreen, StatusYellow, StatusRed),
+                        center = Offset(centerX, centerY)
+                    )
+                    drawArc(
+                        brush = gradientBrush,
+                        startAngle = 180f, sweepAngle = sweep,
+                        useCenter = false, topLeft = arcTopLeft, size = arcSize,
+                        style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                    )
+                }
 
-                drawArc(
-                    color = arcColor,
-                    startAngle = 180f,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                )
-
-                // Draw tick marks
-                val tickCount = 8
-                val centerX = canvasWidth / 2
-                val centerY = canvasHeight * 0.85f
-                val radius = arcSize.width / 2
-                val tickLength = canvasWidth * 0.08f
-
+                // Tick marks with labels
+                val tickCount = 5
                 for (i in 0..tickCount) {
-                    val angle = Math.toRadians((180.0 + (180.0 * i / tickCount)))
-                    val cos = cos(angle).toFloat()
-                    val sin = sin(angle).toFloat()
-
-                    val startX = centerX + (radius - strokeWidth / 2) * cos
-                    val startY = centerY + (radius - strokeWidth / 2) * sin
-                    val endX = centerX + (radius - strokeWidth / 2 - tickLength) * cos
-                    val endY = centerY + (radius - strokeWidth / 2 - tickLength) * sin
+                    val angle = Math.toRadians(180.0 + 180.0 * i / tickCount)
+                    val cosA = cos(angle).toFloat()
+                    val sinA = sin(angle).toFloat()
+                    val tickInner = radius - strokeW / 2
+                    val tickOuter = tickInner - w * 0.07f
 
                     drawLine(
                         color = GaugeTick,
-                        start = Offset(startX, startY),
-                        end = Offset(endX, endY),
-                        strokeWidth = 1.5f
+                        start = Offset(centerX + tickInner * cosA, centerY + tickInner * sinA),
+                        end = Offset(centerX + tickOuter * cosA, centerY + tickOuter * sinA),
+                        strokeWidth = 2f
                     )
                 }
 
-                // Draw needle
-                val needleAngle = Math.toRadians(
-                    (180.0 + ((value - minValue) / (maxValue - minValue)).coerceIn(0.0, 1.0) * 180.0)
+                // Center hub (dark circle behind needle)
+                drawCircle(
+                    color = Color(0xFF1A1A2E),
+                    radius = w * 0.09f,
+                    center = Offset(centerX, centerY)
                 )
-                val needleLength = radius * 0.65f
-                val needleX = centerX + needleLength * cos(needleAngle).toFloat()
-                val needleY = centerY + needleLength * sin(needleAngle).toFloat()
+                drawCircle(
+                    color = GaugeNeedle,
+                    radius = w * 0.04f,
+                    center = Offset(centerX, centerY)
+                )
 
-                rotate(180f, pivot = Offset(centerX, centerY)) {
-                    // Pivot dot
-                    drawCircle(
-                        color = GaugeNeedle,
-                        radius = canvasWidth * 0.04f,
-                        center = Offset(centerX, centerY)
-                    )
-                }
+                // Needle
+                val needleAngle = Math.toRadians(180.0 + fraction * 180.0)
+                val needleLen = radius * 0.55f
+                val nx = centerX + needleLen * cos(needleAngle).toFloat()
+                val ny = centerY + needleLen * sin(needleAngle).toFloat()
 
+                // Needle shadow
+                drawLine(
+                    color = Color.Black.copy(alpha = 0.3f),
+                    start = Offset(centerX + 1.dp.toPx(), centerY + 1.dp.toPx()),
+                    end = Offset(nx + 1.dp.toPx(), ny + 1.dp.toPx()),
+                    strokeWidth = 3f, cap = StrokeCap.Round
+                )
                 drawLine(
                     color = GaugeNeedle,
                     start = Offset(centerX, centerY),
-                    end = Offset(needleX, needleY),
-                    strokeWidth = 2.5f,
-                    cap = StrokeCap.Round
+                    end = Offset(nx, ny),
+                    strokeWidth = 2.5f, cap = StrokeCap.Round
                 )
             }
 
-            // Center value text
+            // Center value + unit
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = formatValue(value),
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = OnBackground
                 )
                 Text(
@@ -163,25 +143,13 @@ fun GaugeWidget(
             }
         }
 
-        // Bottom label
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = OnSurface,
-            maxLines = 1
-        )
+        // Label
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = OnSurface, maxLines = 1)
     }
 }
 
-/**
- * Format a numeric value for gauge display.
- * Uses integer display for values >= 100 or fractional display otherwise.
- */
-private fun formatValue(value: Double): String {
-    return when {
-        value >= 1000 -> String.format("%.0f", value)
-        value >= 100 -> String.format("%.0f", value)
-        value >= 10 -> String.format("%.1f", value)
-        else -> String.format("%.1f", value)
-    }
+private fun formatValue(value: Double): String = when {
+    value >= 1000 -> String.format("%.0f", value)
+    value >= 100 -> String.format("%.0f", value)
+    else -> String.format("%.1f", value)
 }

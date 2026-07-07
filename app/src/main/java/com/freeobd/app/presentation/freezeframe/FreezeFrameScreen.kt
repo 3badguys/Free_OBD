@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.SupportBlockGrid
+import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
 import org.koin.androidx.compose.koinViewModel
 
@@ -228,53 +231,14 @@ private fun FreezeFrameContent(
                     Text("Support Status", style = MaterialTheme.typography.labelSmall,
                         color = OnSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
-                    val rows = state.pidStates.chunked(8)
-                    rows.forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            rowItems.forEach { ps ->
-                                val label = String.format("%02X", ps.pidId)
-                                val bg = if (ps.isSupported) StatusGreen.copy(alpha = 0.15f)
-                                else StatusRed.copy(alpha = 0.12f)
-                                val bd = if (ps.isSupported) StatusGreen.copy(alpha = 0.5f)
-                                else StatusRed.copy(alpha = 0.4f)
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(bg)
-                                        .border(1.dp, bd, RoundedCornerShape(4.dp))
-                                        .then(
-                                            if (ps.isSupported) Modifier.clickable {
-                                                viewModel.onEvent(FreezeFrameEvent.ScrollToPid(ps.pidId))
-                                            } else Modifier
-                                        )
-                                        .padding(vertical = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(label, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                                        color = OnSurfaceVariant)
-                                }
-                            }
-                            repeat(8 - rowItems.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                    }
-                    // Legend
+                    SupportBlockGrid(
+                        items = state.pidStates,
+                        idExtractor = { it.pidId },
+                        supportedExtractor = { it.isSupported },
+                        onBlockClick = { viewModel.onEvent(FreezeFrameEvent.ScrollToPid(it)) }
+                    )
                     Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusGreen))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Supported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusRed.copy(alpha = 0.6f)))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Unsupported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        }
-                    }
+                    SupportLegend()
                 }
             }
         }
@@ -285,7 +249,14 @@ private fun FreezeFrameContent(
         }
 
         itemsIndexed(state.pidStates, key = { _, s -> "pid_${s.pidId}" }) { _, ps ->
-            PidCard(ps, state.frameNumber)
+            DetailCard(
+                command = String.format("02%02X%02X", ps.pidId, state.frameNumber),
+                description = ps.description,
+                isSupported = ps.isSupported,
+                isLoading = ps.result is FreezeFramePidResult.Loading,
+                resultText = (ps.result as? FreezeFramePidResult.Success)?.data,
+                errorText = (ps.result as? FreezeFramePidResult.Error)?.message
+            )
         }
 
         item(key = "bottom") { Spacer(Modifier.height(16.dp)) }

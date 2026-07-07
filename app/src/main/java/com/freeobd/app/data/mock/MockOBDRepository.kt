@@ -36,8 +36,6 @@ class MockOBDRepository : OBDRepository {
         DebugLogger.tx("ATZ"); delay(50); DebugLogger.rx("ELM327 v2.1")
         DebugLogger.tx("ATE0"); delay(50); DebugLogger.rx("OK")
         DebugLogger.tx("ATL0"); delay(50); DebugLogger.rx("OK")
-        DebugLogger.tx("ATRV"); delay(50); DebugLogger.rx("13.8V")
-        DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
         // Simulate Yuming Electronics adapter with crypto challenge.
         // Uses the same YMOBDCrypto pipeline as the real ELM327Initializer
         // so both code paths are exercised.
@@ -140,29 +138,6 @@ class MockOBDRepository : OBDRepository {
         }.flowOn(kotlinx.coroutines.Dispatchers.Default)
     }
 
-    // ── PID Discovery ──────────────────────────────────────
-    override suspend fun discoverSupportedPIDs(mode: Int): Result<Set<Int>> {
-        val modeHex = String.format("%02X", mode)
-        DebugLogger.tx("${modeHex}00"); delay(100); DebugLogger.rx("BE 1F A8 13")
-        DebugLogger.tx("${modeHex}20"); delay(100); DebugLogger.rx("80 00 00 01")
-        return Result.success(
-            setOf(
-                // PID 0x00 bitmap will indicate support for 0x01-0x20
-                0x01, 0x03, 0x04, 0x05, 0x06, 0x07,
-                0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-                0x10, 0x11, 0x13, 0x14, 0x15, 0x1C,
-                0x1F, 0x20,
-                // PID 0x20 bitmap will indicate support for some 0x21-0x40
-                0x21, 0x22, 0x23, 0x24, 0x2F,
-                0x30, 0x31, 0x32, 0x33,
-                // Extended PIDs
-                0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
-                0x4C, 0x4D, 0x4E, 0x4F,
-                0x51, 0x52, 0x5A, 0x5C
-            )
-        )
-    }
-
     // ── Mode 03: Stored DTCs ───────────────────────────────
     override suspend fun readStoredDTCs(): Result<List<DTC>> {
         DebugLogger.tx("03"); delay(150); DebugLogger.rx("43 02 01 02 03 04")
@@ -190,7 +165,7 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 04: Clear DTCs ────────────────────────────────
     override suspend fun clearDTCs(): Result<Unit> {
-        delay(100)
+        DebugLogger.tx("04"); delay(150); DebugLogger.rx("44")
         return Result.success(Unit)
     }
 
@@ -247,8 +222,9 @@ class MockOBDRepository : OBDRepository {
         DebugLogger.tx(command); delay(100)
         return when {
             segment == 0x00 && frameNumber == 0 -> {
-                DebugLogger.rx("42 00 00 18 18 02")
-                Result.success(FreezeFrameDiscovery("42 00 00 18 18 02", setOf(0x04, 0x05, 0x0C, 0x0D, 0x11)))
+                // Byte 0: 0x58 = bits for 02,04,05   Byte 1: 0x18 = bits for 0C,0D   Byte 2: 0x02 = bit for 11
+                DebugLogger.rx("42 00 00 58 18 02")
+                Result.success(FreezeFrameDiscovery("42 00 00 58 18 02", setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11)))
             }
             segment == 0x00 && frameNumber == 1 -> {
                 // Second frame — different PIDs
@@ -276,12 +252,13 @@ class MockOBDRepository : OBDRepository {
         val data = generatePIDValue(pidId)
         return when (data) {
             is OBDData.Numeric -> {
+                val value = data.value.toInt()
                 val resp = String.format("42 %02X %02X %02X",
-                    pidId,
-                    (data.value.toInt() shr 8) and 0xFF,
-                    data.value.toInt() and 0xFF)
+                    pidId, (value shr 8) and 0xFF, value and 0xFF)
                 DebugLogger.rx(resp)
-                Result.success("${data.value} ${data.unit}".trim())
+                // PID 0x02 = Freeze Frame DTC — format as DTC code
+                val display = if (pidId == 0x02) formatDtcCode(value) else "${data.value} ${data.unit}".trim()
+                Result.success(display)
             }
             else -> {
                 DebugLogger.rx("7F 02 11")
@@ -290,9 +267,21 @@ class MockOBDRepository : OBDRepository {
         }
     }
 
+    /** Convert a 2-byte DTC value to a human-readable code (e.g. 0x0170 → "P0170"). */
+    private fun formatDtcCode(value: Int): String {
+        val category = when ((value shr 14) and 0x03) {
+            0 -> "P"; 1 -> "C"; 2 -> "B"; 3 -> "U"; else -> "?"
+        }
+        val d1 = (value shr 12) and 0x03
+        val d2 = (value shr 8) and 0x0F
+        val d3 = (value shr 4) and 0x0F
+        val d4 = value and 0x0F
+        return "$category$d1$d2$d3$d4"
+    }
+
     // ── Mode 07: Pending DTCs ──────────────────────────────
     override suspend fun readPendingDTCs(): Result<List<DTC>> {
-        delay(100)
+        DebugLogger.tx("07"); delay(100); DebugLogger.rx("47 01 01 71")
         return Result.success(
             listOf(
                 DTC(
@@ -347,18 +336,31 @@ class MockOBDRepository : OBDRepository {
                 DebugLogger.rx("49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
                 Result.success("ECM")
             }
-            else -> {
+            0x01 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 01 01"); Result.success("01") }
+            0x03 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 03 01"); Result.success("01") }
+            0x05 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 05 01"); Result.success("01") }
+            0x07 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 07 01"); Result.success("01") }
+            0x08 -> {
                 DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("7F 09 11")
-                Result.failure(Exception("serviceNotSupported"))
+                DebugLogger.rx("49 08 01 A1 B2 C3 D4")
+                Result.success("A1 B2 C3 D4")
+            }
+            0x0B -> {
+                DebugLogger.tx(command); delay(100)
+                DebugLogger.rx("49 0B 01 A1 B2 C3 D4")
+                Result.success("A1 B2 C3 D4")
+            }
+            else -> {
+                DebugLogger.tx(command); delay(80)
+                DebugLogger.rx(String.format("49 %02X 00", infoType))
+                Result.success("—")
             }
         }
     }
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
     override suspend fun readPermanentDTCs(): Result<List<DTC>> {
-        delay(100)
-        // Usually empty unless there are serious unresolved issues
+        DebugLogger.tx("0A"); delay(100); DebugLogger.rx("4A 00")
         return Result.success(emptyList())
     }
 
@@ -390,8 +392,22 @@ class MockOBDRepository : OBDRepository {
             0x10 -> OBDData.Numeric(mafRate, "g/s", pidId)
             0x1F -> OBDData.Numeric(runTime, "s", pidId)
             0x21 -> OBDData.Numeric(152.3 + random.nextDouble(-1.0, 1.0), "km", pidId)
-            // Default for unsupported PIDs
-            else -> OBDData.Unavailable
+            // Generic fallback — generate plausible numeric values for any PID
+            0x02 -> OBDData.Numeric(0x0170.toDouble(), "", pidId) // Freeze Frame DTC = P0170
+            else -> {
+                // Determine byte count by PID range (rough heuristic)
+                val bytes = when {
+                    pidId in setOf(0x0C, 0x10, 0x1F, 0x21, 0x22, 0x23, 0x31, 0x3C, 0x3D, 0x3E, 0x3F, 0x42, 0x43, 0x44, 0x4D, 0x4E, 0x5D, 0x5E, 0x63, 0x6B, 0x73, 0x78, 0x79, 0x7A, 0x7B) -> 2
+                    pidId >= 0x7F -> 4
+                    else -> 1
+                }
+                val value = when (bytes) {
+                    2 -> 500.0 + random.nextDouble(-50.0, 50.0)
+                    4 -> 100000.0 + random.nextDouble(0.0, 50000.0)
+                    else -> 50.0 + random.nextDouble(-10.0, 10.0)
+                }
+                OBDData.Numeric(value, "", pidId)
+            }
         }
     }
 }

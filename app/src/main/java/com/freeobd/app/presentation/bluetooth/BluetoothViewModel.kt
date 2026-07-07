@@ -11,7 +11,6 @@ import com.freeobd.app.domain.model.DeviceType
 import com.freeobd.app.domain.repository.BluetoothRepository
 import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ConnectBluetoothUseCase
-import com.freeobd.app.domain.usecase.DiscoverPIDsUseCase
 import com.freeobd.app.utils.collectSafely
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -19,7 +18,6 @@ import kotlinx.coroutines.flow.*
 class BluetoothViewModel(
     private val connectBluetoothUseCase: ConnectBluetoothUseCase,
     private val bluetoothRepository: BluetoothRepository,
-    private val discoverPIDsUseCase: DiscoverPIDsUseCase,
     private val obdRepository: OBDRepository
 ) : ViewModel() {
 
@@ -180,7 +178,6 @@ class BluetoothViewModel(
                                     adapterInfo = adapterInfo,
                                     voltage = voltage
                                 )
-                                launch { activeObdRepo.discoverSupportedPIDs().onFailure { } }
                             },
                             onFailure = { error ->
                                 repo.disconnect()
@@ -211,11 +208,6 @@ class BluetoothViewModel(
                             adapterInfo = adapterInfo,
                             voltage = voltage
                         )
-                        launch {
-                            discoverPIDsUseCase().onFailure { error ->
-                                android.util.Log.w("BluetoothVM", "PID discovery failed: ${error.message}")
-                            }
-                        }
                     },
                     onFailure = { error ->
                         _uiState.value = BluetoothUiState.Error(

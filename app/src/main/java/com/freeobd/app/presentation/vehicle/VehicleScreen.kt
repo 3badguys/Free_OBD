@@ -23,6 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.SupportBlockGrid
+import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -177,8 +180,15 @@ private fun VehicleInfoContent(
         }
 
         // Detail cards
-        itemsIndexed(detailItems, key = { _, it -> "type_${it.meta.infoType}" }) { _, typeState ->
-            InfoTypeCard(typeState)
+        itemsIndexed(detailItems, key = { _, it -> "type_${it.meta.infoType}" }) { _, ts ->
+            DetailCard(
+                command = ts.meta.command,
+                description = ts.meta.description,
+                isSupported = ts.isSupported,
+                isLoading = ts.result is VehicleInfoTypeResult.Loading,
+                resultText = (ts.result as? VehicleInfoTypeResult.Success)?.data,
+                errorText = (ts.result as? VehicleInfoTypeResult.Error)?.message
+            )
         }
 
         item(key = "spacer") {
@@ -215,53 +225,14 @@ private fun DiscoveryCard(
             Text("Support Status", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 8 blocks per row, 4 rows for InfoTypes 01–20
-            val rows = typeStates.chunked(8)
-            rows.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    rowItems.forEach { state ->
-                        SupportBlock(
-                            label = String.format("%02X", state.meta.infoType),
-                            isSupported = state.isSupported,
-                            enabled = state.isSupported,
-                            onClick = {
-                                if (state.isSupported) {
-                                    onBlockClick(state.meta.infoType)
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    repeat(8 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Legend
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusGreen)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Supported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusRed.copy(alpha = 0.6f))
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Unsupported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                }
-            }
+            SupportBlockGrid(
+                items = typeStates,
+                idExtractor = { it.meta.infoType },
+                supportedExtractor = { it.isSupported },
+                onBlockClick = onBlockClick
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            SupportLegend()
         }
     }
 }

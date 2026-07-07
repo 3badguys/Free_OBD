@@ -82,16 +82,7 @@ interface OBDRepository {
      */
     fun pollPIDs(pidIds: List<Int>, intervalMs: Long = 250): Flow<Map<Int, OBDData>>
 
-    // --- Mode 01: PID Discovery ---
-
-    /**
-     * Discover all PIDs supported by the vehicle by walking the bitmap chain.
-     * Sends 0100, 0120, 0140... until a zero-bitmap is returned.
-     *
-     * @param mode The OBD mode to discover PIDs for (default 0x01).
-     * @return Set of supported PID IDs.
-     */
-    suspend fun discoverSupportedPIDs(mode: Int = 0x01): Result<Set<Int>>
+    // --- Mode 01: Live Data Explorer ---
 
     /**
      * Discover which PIDs are supported in a single Mode 01 bitmap segment.

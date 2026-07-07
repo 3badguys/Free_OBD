@@ -63,14 +63,13 @@ val appModule = module {
     factory { ConnectBluetoothUseCase(get(), get()) }
     factory { ReadLiveDataUseCase(get()) }
     factory { ReadDTCUseCase(get()) }
-    factory { DiscoverPIDsUseCase(get()) }
     // ── ViewModels ─────────────────────────────────────────
 
-    viewModel { BluetoothViewModel(get(), get(), get(), get()) }
-    viewModel { DashboardViewModel(get(), get(), get()) }
+    viewModel { BluetoothViewModel(get(), get(), get()) }
+    viewModel { DashboardViewModel(get(), get()) }
     viewModel { DebugViewModel(get()) }
     viewModel { DtcViewModel(get(), get()) }
     viewModel { LiveDataViewModel(get(), get()) }
     viewModel { FreezeFrameViewModel(get(), get()) }
-    viewModel { VehicleViewModel(get()) }
+    viewModel { VehicleViewModel(get(), get()) }
 }

@@ -29,6 +29,7 @@ fun DtcScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedDtc by viewModel.selectedDtc.collectAsState()
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     // Load codes on first composition
     LaunchedEffect(Unit) {
@@ -47,7 +48,7 @@ fun DtcScreen(
                 actions = {
                     if (uiState is DtcUiState.Loaded && (uiState as DtcUiState.Loaded).storedDTCs.isNotEmpty()) {
                         IconButton(
-                            onClick = { viewModel.onEvent(DtcEvent.ClearCodes) }
+                            onClick = { showClearConfirm = true }
                         ) {
                             Icon(
                                 Icons.Default.DeleteForever,
@@ -182,6 +183,28 @@ fun DtcScreen(
         DtcDetailDialog(
             dtc = selectedDtc!!,
             onDismiss = { viewModel.clearSelectedDtc() }
+        )
+    }
+
+    // Clear codes confirmation dialog
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Clear All DTCs") },
+            text = { Text("This will clear all stored diagnostic trouble codes, freeze frame data, and oxygen sensor test results. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearConfirm = false
+                    viewModel.onEvent(DtcEvent.ClearCodes)
+                }) {
+                    Text("Clear", color = StatusRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }
