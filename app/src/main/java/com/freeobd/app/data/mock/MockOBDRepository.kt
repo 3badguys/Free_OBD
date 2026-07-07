@@ -197,8 +197,55 @@ class MockOBDRepository : OBDRepository {
     // ── Mode 02: Freeze Frame ──────────────────────────────
     override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
         delay(80)
-        // Return snapshot values (frozen at time of fault)
         return Result.success(generatePIDValue(pidId))
+    }
+
+    override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
+        val command = String.format("02%02X%02X", segment, frameNumber)
+        DebugLogger.tx(command); delay(100)
+        return when {
+            segment == 0x00 && frameNumber == 0 -> {
+                DebugLogger.rx("42 00 00 18 18 02")
+                Result.success(FreezeFrameDiscovery("42 00 00 18 18 02", setOf(0x04, 0x05, 0x0C, 0x0D, 0x11)))
+            }
+            segment == 0x00 && frameNumber == 1 -> {
+                // Second frame — different PIDs
+                DebugLogger.rx("42 00 01 08 18 00")
+                Result.success(FreezeFrameDiscovery("42 00 01 08 18 00", setOf(0x05, 0x0C, 0x0D)))
+            }
+            frameNumber >= 2 -> {
+                DebugLogger.rx("7F 02 11")
+                Result.failure(Exception("No more freeze frames"))
+            }
+            else -> {
+                val segHex = String.format("%02X", segment)
+                val frameHex = String.format("%02X", frameNumber)
+                DebugLogger.rx("42 $segHex $frameHex 00 00 00 00")
+                Result.success(FreezeFrameDiscovery(
+                    "42 $segHex $frameHex 00 00 00 00", emptySet()
+                ))
+            }
+        }
+    }
+
+    override suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int): Result<String> {
+        val command = String.format("02%02X%02X", pidId, frameNumber)
+        DebugLogger.tx(command); delay(80)
+        val data = generatePIDValue(pidId)
+        return when (data) {
+            is OBDData.Numeric -> {
+                val resp = String.format("42 %02X %02X %02X",
+                    pidId,
+                    (data.value.toInt() shr 8) and 0xFF,
+                    data.value.toInt() and 0xFF)
+                DebugLogger.rx(resp)
+                Result.success("${data.value} ${data.unit}".trim())
+            }
+            else -> {
+                DebugLogger.rx("7F 02 11")
+                Result.failure(Exception("serviceNotSupported"))
+            }
+        }
     }
 
     // ── Mode 07: Pending DTCs ──────────────────────────────

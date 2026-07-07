@@ -39,6 +39,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun BluetoothScreen(
     onNavigateToDashboard: () -> Unit,
+    onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
     onNavigateToDebugConsole: () -> Unit = {},
@@ -241,6 +242,7 @@ fun BluetoothScreen(
                         state = state,
                         debugLoggingEnabled = debugLoggingEnabled,
                         onNavigateToDashboard = onNavigateToDashboard,
+                        onNavigateToFreezeFrame = onNavigateToFreezeFrame,
                         onNavigateToDTC = onNavigateToDTC,
                         onNavigateToVehicleInfo = onNavigateToVehicleInfo,
                         onNavigateToDebugConsole = onNavigateToDebugConsole,
@@ -696,6 +698,7 @@ private fun ConnectedContent(
     state: BluetoothUiState.Connected,
     debugLoggingEnabled: Boolean = false,
     onNavigateToDashboard: () -> Unit,
+    onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
     onNavigateToDebugConsole: () -> Unit,
@@ -804,6 +807,15 @@ private fun ConnectedContent(
             description = "View real-time sensor data with customizable gauges",
             icon = Icons.Default.Dashboard,
             onClick = onNavigateToDashboard
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        FeatureCard(
+            title = "Freeze Frame Data",
+            description = "View sensor snapshots captured at the moment a fault occurred",
+            icon = Icons.Default.CameraAlt,
+            onClick = onNavigateToFreezeFrame
         )
 
         Spacer(modifier = Modifier.height(8.dp))

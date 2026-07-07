@@ -223,6 +223,43 @@ class OBDRepositoryImpl(
         }
     }
 
+    override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
+        return runCatching {
+            val command = String.format("02%02X%02X", segment, frameNumber)
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            val data = extractDataBytes(rawBytes)
+            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            val supported = mutableSetOf<Int>()
+            for (byteIdx in data.indices) {
+                val byte = data[byteIdx].toInt() and 0xFF
+                if (byte == 0) continue
+                for (bit in 0..7) {
+                    if ((byte and (1 shl (7 - bit))) != 0) {
+                        supported.add(byteIdx * 8 + bit + 1 + segment)
+                    }
+                }
+            }
+            FreezeFrameDiscovery(
+                rawHex = "42 ${String.format("%02X", segment)} ${String.format("%02X", frameNumber)} $hex",
+                supportedPids = supported
+            )
+        }
+    }
+
+    override suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int): Result<String> {
+        return runCatching {
+            val pidHex = String.format("%02X", pidId)
+            val frameHex = String.format("%02X", frameNumber)
+            val rawBytes = requireQueue().sendObdCommand("02$pidHex$frameHex").getOrThrow()
+            val parsed = parsePIDResponse(pidId, rawBytes)
+            if (parsed is OBDData.Numeric) {
+                "${parsed.value} ${parsed.unit}".trim()
+            } else {
+                "No data"
+            }
+        }
+    }
+
     // ── Mode 07: Pending DTCs ──────────────────────────────
     override suspend fun readPendingDTCs(): Result<List<DTC>> =
         readDTCsFromMode("07", DTCStatus.PENDING)

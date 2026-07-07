@@ -12,6 +12,9 @@ sealed class NavRoutes(val route: String) {
     /** Live data dashboard with configurable gauges. */
     data object Dashboard : NavRoutes("dashboard")
 
+    /** Freeze Frame data — Mode 02 PID discovery and display. */
+    data object FreezeFrame : NavRoutes("freeze_frame")
+
     /** Diagnostic Trouble Codes (stored, pending, permanent). */
     data object DTC : NavRoutes("dtc")
 

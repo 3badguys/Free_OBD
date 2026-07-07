@@ -3,6 +3,7 @@ package com.freeobd.app.domain.repository
 import com.freeobd.app.domain.model.DTC
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.model.ProtocolInfo
+import com.freeobd.app.domain.model.FreezeFrameDiscovery
 import com.freeobd.app.domain.model.VehicleInfoDiscovery
 import kotlinx.coroutines.flow.Flow
 
@@ -108,6 +109,23 @@ interface OBDRepository {
      * Freeze frame captures sensor data at the moment a fault occurred.
      */
     suspend fun readFreezeFrame(pidId: Int): Result<OBDData>
+
+    /**
+     * Discover which PIDs are available in the freeze frame via 02XX00 bitmap.
+     *
+     * @param segment The bitmap segment offset (0x00, 0x20, 0x40, ... 0xE0).
+     * @return [FreezeFrameDiscovery] with raw hex response and supported PID IDs.
+     */
+    suspend fun discoverFreezeFramePIDs(segment: Int = 0x00, frameNumber: Int = 0): Result<FreezeFrameDiscovery>
+
+    /**
+     * Read a single PID from the freeze frame and return formatted result.
+     *
+     * @param pidId The PID identifier (e.g. 0x0C for RPM).
+     * @param frameNumber The freeze frame index (0 = first frame).
+     * @return Human-readable string with value and unit.
+     */
+    suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int = 0): Result<String>
 
     // --- Mode 07: Pending DTCs ---
 
