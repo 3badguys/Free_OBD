@@ -9,6 +9,7 @@ import com.freeobd.app.presentation.dashboard.DashboardScreen
 import com.freeobd.app.presentation.debug.DebugConsoleScreen
 import com.freeobd.app.presentation.dtc.DtcScreen
 import com.freeobd.app.presentation.freezeframe.FreezeFrameScreen
+import com.freeobd.app.presentation.livedata.LiveDataScreen
 import com.freeobd.app.presentation.vehicle.VehicleScreen
 import org.koin.androidx.compose.koinViewModel
 
@@ -33,6 +34,11 @@ fun AppNavHost(
             BluetoothScreen(
                 onNavigateToDashboard = {
                     navController.navigate(NavRoutes.Dashboard.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToLiveData = {
+                    navController.navigate(NavRoutes.LiveData.route) {
                         launchSingleTop = true
                     }
                 },
@@ -62,6 +68,13 @@ fun AppNavHost(
         // Live data dashboard
         composable(NavRoutes.Dashboard.route) {
             DashboardScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Mode 01 Live Data
+        composable(NavRoutes.LiveData.route) {
+            LiveDataScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -261,6 +261,20 @@ private fun FreezeFrameContent(
                         }
                         Spacer(Modifier.height(2.dp))
                     }
+                    // Legend
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusGreen))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Supported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(StatusRed.copy(alpha = 0.6f)))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Unsupported", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                    }
                 }
             }
         }

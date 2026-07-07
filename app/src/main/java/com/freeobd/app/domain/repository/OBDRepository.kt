@@ -4,6 +4,7 @@ import com.freeobd.app.domain.model.DTC
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.model.ProtocolInfo
 import com.freeobd.app.domain.model.FreezeFrameDiscovery
+import com.freeobd.app.domain.model.LiveDataDiscovery
 import com.freeobd.app.domain.model.VehicleInfoDiscovery
 import kotlinx.coroutines.flow.Flow
 
@@ -91,6 +92,22 @@ interface OBDRepository {
      * @return Set of supported PID IDs.
      */
     suspend fun discoverSupportedPIDs(mode: Int = 0x01): Result<Set<Int>>
+
+    /**
+     * Discover which PIDs are supported in a single Mode 01 bitmap segment.
+     *
+     * @param segment The bitmap segment offset (0x00, 0x20, ... 0xE0).
+     * @return [LiveDataDiscovery] with raw hex and supported PID IDs.
+     */
+    suspend fun discoverLiveDataPIDs(segment: Int = 0x00): Result<LiveDataDiscovery>
+
+    /**
+     * Read a single Mode 01 PID and return formatted result string.
+     *
+     * @param pidId The PID identifier (e.g. 0x0C for RPM).
+     * @return Human-readable string with value and unit.
+     */
+    suspend fun readLiveDataPID(pidId: Int): Result<String>
 
     // --- Mode 03: Stored DTCs ---
 

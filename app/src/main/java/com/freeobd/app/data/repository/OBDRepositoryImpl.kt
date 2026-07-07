@@ -214,6 +214,43 @@ class OBDRepositoryImpl(
         }
     }
 
+    // ── Mode 01: Per-segment discovery ────────────────────
+
+    override suspend fun discoverLiveDataPIDs(segment: Int): Result<LiveDataDiscovery> {
+        return runCatching {
+            val command = String.format("01%02X", segment)
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            val data = extractDataBytes(rawBytes)
+            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            val supported = mutableSetOf<Int>()
+            for (byteIdx in data.indices) {
+                val byte = data[byteIdx].toInt() and 0xFF
+                if (byte == 0) continue
+                for (bit in 0..7) {
+                    if ((byte and (1 shl (7 - bit))) != 0) {
+                        supported.add(byteIdx * 8 + bit + 1 + segment)
+                    }
+                }
+            }
+            LiveDataDiscovery(
+                rawHex = "41 ${String.format("%02X", segment)} $hex",
+                supportedPids = supported
+            )
+        }
+    }
+
+    override suspend fun readLiveDataPID(pidId: Int): Result<String> {
+        return runCatching {
+            val rawBytes = requireQueue().sendObdCommand(String.format("01%02X", pidId)).getOrThrow()
+            val parsed = parsePIDResponse(pidId, rawBytes)
+            if (parsed is OBDData.Numeric) {
+                "${parsed.value} ${parsed.unit}".trim()
+            } else {
+                "No data"
+            }
+        }
+    }
+
     // ── Mode 02: Freeze Frame ──────────────────────────────
     override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
         return runCatching {

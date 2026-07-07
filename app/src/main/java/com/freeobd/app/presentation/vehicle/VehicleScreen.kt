@@ -56,8 +56,8 @@ fun VehicleScreen(
         // Find the index of the target type within the type states list
         val idx = uiState.typeStates.indexOfFirst { it.meta.infoType == target }
         if (idx >= 0) {
-            // Offset: header items (hex card + support blocks + section title)
-            val headerCount = 3 // RawHexCard + SupportBlocks
+            // Offset: header items (discovery card + section title)
+            val headerCount = 2
             listState.animateScrollToItem(headerCount + idx)
         }
         viewModel.onScrollConsumed()
@@ -158,14 +158,13 @@ private fun VehicleInfoContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Header: raw hex card
-        item(key = "hex") {
-            RawHexCard(hex = state.bitmapHex)
-        }
-
-        // Header: support blocks
+        // Header: 0900 response hex + support blocks in one card
         item(key = "blocks") {
-            SupportBlocks(typeStates = state.typeStates, onBlockClick = onBlockClick)
+            DiscoveryCard(
+                hex = state.bitmapHex,
+                typeStates = state.typeStates,
+                onBlockClick = onBlockClick
+            )
         }
 
         // Section title
@@ -188,10 +187,14 @@ private fun VehicleInfoContent(
     }
 }
 
-// ── Raw hex card ──────────────────────────────────────────
+// ── Discovery card (0900 response + support blocks) ───────
 
 @Composable
-private fun RawHexCard(hex: String) {
+private fun DiscoveryCard(
+    hex: String,
+    typeStates: List<VehicleInfoTypeState>,
+    onBlockClick: (Int) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface)
@@ -208,22 +211,7 @@ private fun RawHexCard(hex: String) {
                 fontFamily = FontFamily.Monospace,
                 color = OnBackground
             )
-        }
-    }
-}
-
-// ── Support blocks ────────────────────────────────────────
-
-@Composable
-private fun SupportBlocks(
-    typeStates: List<VehicleInfoTypeState>,
-    onBlockClick: (Int) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+            Spacer(modifier = Modifier.height(12.dp))
             Text("Support Status", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
 

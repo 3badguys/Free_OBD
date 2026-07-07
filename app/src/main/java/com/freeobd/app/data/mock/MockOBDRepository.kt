@@ -194,6 +194,48 @@ class MockOBDRepository : OBDRepository {
         return Result.success(Unit)
     }
 
+    // ── Mode 01: Per-segment discovery ────────────────────
+
+    override suspend fun discoverLiveDataPIDs(segment: Int): Result<LiveDataDiscovery> {
+        val command = String.format("01%02X", segment)
+        DebugLogger.tx(command); delay(100)
+        return when (segment) {
+            0x00 -> {
+                DebugLogger.rx("41 00 BE 1F A8 13")
+                Result.success(LiveDataDiscovery("41 00 BE 1F A8 13",
+                    setOf(0x01,0x03,0x04,0x05,0x06,0x07,0x0B,0x0C,0x0D,0x0E,0x0F,
+                          0x11,0x13,0x14,0x15,0x1C,0x1F,0x20)))
+            }
+            0x20 -> {
+                DebugLogger.rx("41 20 80 00 00 01")
+                Result.success(LiveDataDiscovery("41 20 80 00 00 01",
+                    setOf(0x21, 0x3F)))
+            }
+            else -> {
+                val segHex = String.format("%02X", segment)
+                DebugLogger.rx("41 $segHex 00 00 00 00 00")
+                Result.success(LiveDataDiscovery("41 $segHex 00 00 00 00 00", emptySet()))
+            }
+        }
+    }
+
+    override suspend fun readLiveDataPID(pidId: Int): Result<String> {
+        val command = String.format("01%02X", pidId)
+        DebugLogger.tx(command); delay(60)
+        val data = generatePIDValue(pidId)
+        return when (data) {
+            is OBDData.Numeric -> {
+                DebugLogger.rx(String.format("41 %02X %02X %02X", pidId,
+                    (data.value.toInt() shr 8) and 0xFF, data.value.toInt() and 0xFF))
+                Result.success("${data.value} ${data.unit}".trim())
+            }
+            else -> {
+                DebugLogger.rx("7F 01 11")
+                Result.failure(Exception("serviceNotSupported"))
+            }
+        }
+    }
+
     // ── Mode 02: Freeze Frame ──────────────────────────────
     override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
         delay(80)

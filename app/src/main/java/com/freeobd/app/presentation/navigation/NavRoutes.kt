@@ -12,6 +12,9 @@ sealed class NavRoutes(val route: String) {
     /** Live data dashboard with configurable gauges. */
     data object Dashboard : NavRoutes("dashboard")
 
+    /** Live Data — Mode 01 PID discovery and display. */
+    data object LiveData : NavRoutes("live_data")
+
     /** Freeze Frame data — Mode 02 PID discovery and display. */
     data object FreezeFrame : NavRoutes("freeze_frame")
 

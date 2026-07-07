@@ -39,6 +39,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun BluetoothScreen(
     onNavigateToDashboard: () -> Unit,
+    onNavigateToLiveData: () -> Unit = {},
     onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
@@ -242,6 +243,7 @@ fun BluetoothScreen(
                         state = state,
                         debugLoggingEnabled = debugLoggingEnabled,
                         onNavigateToDashboard = onNavigateToDashboard,
+                        onNavigateToLiveData = onNavigateToLiveData,
                         onNavigateToFreezeFrame = onNavigateToFreezeFrame,
                         onNavigateToDTC = onNavigateToDTC,
                         onNavigateToVehicleInfo = onNavigateToVehicleInfo,
@@ -698,6 +700,7 @@ private fun ConnectedContent(
     state: BluetoothUiState.Connected,
     debugLoggingEnabled: Boolean = false,
     onNavigateToDashboard: () -> Unit,
+    onNavigateToLiveData: () -> Unit = {},
     onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
@@ -804,7 +807,7 @@ private fun ConnectedContent(
 
         FeatureCard(
             title = "Live Data Dashboard",
-            description = "View real-time sensor data with customizable gauges",
+            description = "Real-time sensor gauges with customizable display",
             icon = Icons.Default.Dashboard,
             onClick = onNavigateToDashboard
         )
@@ -812,8 +815,17 @@ private fun ConnectedContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         FeatureCard(
+            title = "Live Data Explorer",
+            description = "Discover supported PIDs and browse all sensor values",
+            icon = Icons.Default.QueryStats,
+            onClick = onNavigateToLiveData
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        FeatureCard(
             title = "Freeze Frame Data",
-            description = "View sensor snapshots captured at the moment a fault occurred",
+            description = "Sensor snapshot captured at the moment a fault occurred",
             icon = Icons.Default.CameraAlt,
             onClick = onNavigateToFreezeFrame
         )
@@ -822,7 +834,7 @@ private fun ConnectedContent(
 
         FeatureCard(
             title = "Diagnostic Trouble Codes",
-            description = "Read, view, and clear stored fault codes",
+            description = "Read, view, and clear stored DTC fault codes",
             icon = Icons.Default.Build,
             onClick = onNavigateToDTC
         )
@@ -831,7 +843,7 @@ private fun ConnectedContent(
 
         FeatureCard(
             title = "Vehicle Information",
-            description = "View VIN, calibration IDs, and CVN data",
+            description = "VIN, calibration IDs, CVN, and ECU identification data",
             icon = Icons.Default.DirectionsCar,
             onClick = onNavigateToVehicleInfo
         )

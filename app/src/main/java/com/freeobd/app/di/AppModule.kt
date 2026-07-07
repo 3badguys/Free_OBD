@@ -12,6 +12,7 @@ import com.freeobd.app.presentation.dashboard.DashboardViewModel
 import com.freeobd.app.presentation.debug.DebugViewModel
 import com.freeobd.app.presentation.dtc.DtcViewModel
 import com.freeobd.app.presentation.freezeframe.FreezeFrameViewModel
+import com.freeobd.app.presentation.livedata.LiveDataViewModel
 import com.freeobd.app.presentation.vehicle.VehicleViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
@@ -69,6 +70,7 @@ val appModule = module {
     viewModel { DashboardViewModel(get(), get(), get()) }
     viewModel { DebugViewModel(get()) }
     viewModel { DtcViewModel(get(), get()) }
+    viewModel { LiveDataViewModel(get(), get()) }
     viewModel { FreezeFrameViewModel(get(), get()) }
     viewModel { VehicleViewModel(get()) }
 }
