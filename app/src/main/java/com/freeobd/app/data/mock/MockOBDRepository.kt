@@ -33,12 +33,10 @@ class MockOBDRepository : OBDRepository {
 
     // ── Initialization ─────────────────────────────────────
     override suspend fun initELM327(protocol: String, ecuAddress: String?, cryptoKey: String?): Result<Unit> {
-        DebugLogger.tx("ATZ"); delay(50); DebugLogger.rx("ELM327 v2.1")
-        DebugLogger.tx("ATE0"); delay(50); DebugLogger.rx("OK")
-        DebugLogger.tx("ATL0"); delay(50); DebugLogger.rx("OK")
-        // Simulate Yuming Electronics adapter with crypto challenge.
-        // Uses the same YMOBDCrypto pipeline as the real ELM327Initializer
-        // so both code paths are exercised.
+        mockResponse("ATZ", "ELM327 v2.1", Unit, 50)
+        mockResponse("ATE0", "OK", Unit, 50)
+        mockResponse("ATL0", "OK", Unit, 50)
+        // Simulate Yuming Electronics adapter with crypto challenge
         val yumingResponse = buildString {
             appendLine("Shenzhen Yuming Electronics Co., Ltd.")
             appendLine("version:V1.0.0")
@@ -62,32 +60,19 @@ class MockOBDRepository : OBDRepository {
         return Result.success(Unit)
     }
 
-    override suspend fun readVoltage(): Result<Double> {
-        DebugLogger.tx("ATRV"); delay(50); DebugLogger.rx("13.8V")
-        return Result.success(13.8)
-    }
+    override suspend fun readVoltage(): Result<Double> =
+        mockResponse("ATRV", "13.8V", 13.8, 50)
 
-    override suspend fun readAdapterInfo(): Result<String> {
-        DebugLogger.tx("ATI"); delay(50); DebugLogger.rx("ELM327 v2.1 (demo)")
-        return Result.success("ELM327 v2.1 (demo)")
-    }
+    override suspend fun readAdapterInfo(): Result<String> =
+        mockResponse("ATI", "ELM327 v2.1 (demo)", "ELM327 v2.1 (demo)", 50)
 
-    override suspend fun sendRawCommand(command: String): Result<String> {
-        DebugLogger.tx(command)
-        delay(50)
-        DebugLogger.rx("Manual TX not supported in demo mode")
-        return Result.success("Manual TX not supported in demo mode")
-    }
+    override suspend fun sendRawCommand(command: String): Result<String> =
+        mockResponse(command, "Manual TX not supported in demo mode", "Manual TX not supported in demo mode", 50)
 
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
-        DebugLogger.tx("ATDPN"); delay(50); DebugLogger.rx("6")
-        DebugLogger.tx("ATDP"); delay(50); DebugLogger.rx("ISO 15765-4 CAN (11 bit ID, 500 kbaud)")
-        return Result.success(
-            ProtocolInfo(
-                description = "ISO 15765-4 CAN (11 bit ID, 500 kbaud)",
-                number = "6"
-            )
-        )
+        mockResponse("ATDPN", "6", Unit, 50)
+        mockResponse("ATDP", "ISO 15765-4 CAN (11 bit ID, 500 kbaud)", Unit, 50)
+        return Result.success(ProtocolInfo("ISO 15765-4 CAN (11 bit ID, 500 kbaud)", "6"))
     }
 
     // ── Mode 01: Current Data ──────────────────────────────
@@ -139,41 +124,21 @@ class MockOBDRepository : OBDRepository {
     }
 
     // ── Mode 03: Stored DTCs ───────────────────────────────
-    override suspend fun readStoredDTCs(): Result<List<DTC>> {
-        DebugLogger.tx("03"); delay(150); DebugLogger.rx("43 02 01 02 03 04")
-        return Result.success(
-            listOf(
-                DTC(
-                    code = "P0301",
-                    description = "Cylinder 1 Misfire Detected",
-                    category = DTCCategory.POWERTRAIN,
-                    system = "Ignition",
-                    severity = DTCSeverity.HIGH,
-                    status = DTCStatus.STORED
-                ),
-                DTC(
-                    code = "P0420",
-                    description = "Catalyst System Efficiency Below Threshold (Bank 1)",
-                    category = DTCCategory.POWERTRAIN,
-                    system = "Emissions",
-                    severity = DTCSeverity.MEDIUM,
-                    status = DTCStatus.STORED
-                )
-            )
-        )
-    }
+    override suspend fun readStoredDTCs(): Result<List<DTC>> =
+        mockResponse("03", "43 02 01 02 03 04", listOf(
+            mockDtc("P0301", "Cylinder 1 Misfire Detected", DTCCategory.POWERTRAIN, "Ignition", DTCSeverity.HIGH, DTCStatus.STORED),
+            mockDtc("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", DTCCategory.POWERTRAIN, "Emissions", DTCSeverity.MEDIUM, DTCStatus.STORED)
+        ), 150)
 
     // ── Mode 04: Clear DTCs ────────────────────────────────
-    override suspend fun clearDTCs(): Result<Unit> {
-        DebugLogger.tx("04"); delay(150); DebugLogger.rx("44")
-        return Result.success(Unit)
-    }
+    override suspend fun clearDTCs(): Result<Unit> =
+        mockResponse("04", "44", Unit, 150)
 
     // ── Mode 01: Per-segment discovery ────────────────────
 
     override suspend fun discoverLiveDataPIDs(segment: Int): Result<LiveDataDiscovery> {
-        val command = String.format("01%02X", segment)
-        DebugLogger.tx(command); delay(100)
+        val cmd = String.format("01%02X", segment)
+        DebugLogger.tx(cmd); delay(100)
         return when (segment) {
             0x00 -> {
                 DebugLogger.rx("41 00 BE 1F A8 13")
@@ -183,33 +148,18 @@ class MockOBDRepository : OBDRepository {
             }
             0x20 -> {
                 DebugLogger.rx("41 20 80 00 00 01")
-                Result.success(LiveDataDiscovery("41 20 80 00 00 01",
-                    setOf(0x21, 0x3F)))
+                Result.success(LiveDataDiscovery("41 20 80 00 00 01", setOf(0x21, 0x3F)))
             }
             else -> {
-                val segHex = String.format("%02X", segment)
-                DebugLogger.rx("41 $segHex 00 00 00 00 00")
-                Result.success(LiveDataDiscovery("41 $segHex 00 00 00 00 00", emptySet()))
+                val sh = String.format("%02X", segment)
+                DebugLogger.rx("41 $sh 00 00 00 00 00")
+                Result.success(LiveDataDiscovery("41 $sh 00 00 00 00 00", emptySet()))
             }
         }
     }
 
-    override suspend fun readLiveDataPID(pidId: Int): Result<String> {
-        val command = String.format("01%02X", pidId)
-        DebugLogger.tx(command); delay(60)
-        val data = generatePIDValue(pidId)
-        return when (data) {
-            is OBDData.Numeric -> {
-                DebugLogger.rx(String.format("41 %02X %02X %02X", pidId,
-                    (data.value.toInt() shr 8) and 0xFF, data.value.toInt() and 0xFF))
-                Result.success("${data.value} ${data.unit}".trim())
-            }
-            else -> {
-                DebugLogger.rx("7F 01 11")
-                Result.failure(Exception("serviceNotSupported"))
-            }
-        }
-    }
+    override suspend fun readLiveDataPID(pidId: Int): Result<String> =
+        mockPidResponse(0x01, pidId)
 
     // ── Mode 02: Freeze Frame ──────────────────────────────
     override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
@@ -218,16 +168,14 @@ class MockOBDRepository : OBDRepository {
     }
 
     override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
-        val command = String.format("02%02X%02X", segment, frameNumber)
-        DebugLogger.tx(command); delay(100)
+        val cmd = String.format("02%02X%02X", segment, frameNumber)
+        DebugLogger.tx(cmd); delay(100)
         return when {
             segment == 0x00 && frameNumber == 0 -> {
-                // Byte 0: 0x58 = bits for 02,04,05   Byte 1: 0x18 = bits for 0C,0D   Byte 2: 0x02 = bit for 11
                 DebugLogger.rx("42 00 00 58 18 02")
                 Result.success(FreezeFrameDiscovery("42 00 00 58 18 02", setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11)))
             }
             segment == 0x00 && frameNumber == 1 -> {
-                // Second frame — different PIDs
                 DebugLogger.rx("42 00 01 08 18 00")
                 Result.success(FreezeFrameDiscovery("42 00 01 08 18 00", setOf(0x05, 0x0C, 0x0D)))
             }
@@ -236,133 +184,84 @@ class MockOBDRepository : OBDRepository {
                 Result.failure(Exception("No more freeze frames"))
             }
             else -> {
-                val segHex = String.format("%02X", segment)
-                val frameHex = String.format("%02X", frameNumber)
-                DebugLogger.rx("42 $segHex $frameHex 00 00 00 00")
-                Result.success(FreezeFrameDiscovery(
-                    "42 $segHex $frameHex 00 00 00 00", emptySet()
-                ))
+                val sh = String.format("%02X", segment)
+                val fh = String.format("%02X", frameNumber)
+                DebugLogger.rx("42 $sh $fh 00 00 00 00")
+                Result.success(FreezeFrameDiscovery("42 $sh $fh 00 00 00 00", emptySet()))
             }
         }
     }
 
-    override suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int): Result<String> {
-        val command = String.format("02%02X%02X", pidId, frameNumber)
-        DebugLogger.tx(command); delay(80)
+    override suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int): Result<String> =
+        mockPidResponse(0x02, pidId, frameNumber)
+
+    /**
+     * Shared mock helper for Mode 01/02 PID responses.
+     * Sends TX, generates a value, formats RX, and returns display string.
+     */
+    private suspend fun mockPidResponse(mode: Int, pidId: Int, frameNumber: Int = 0): Result<String> {
+        val cmd = if (mode == 0x02) String.format("02%02X%02X", pidId, frameNumber)
+        else String.format("%02X%02X", mode, pidId)
+        DebugLogger.tx(cmd); delay(if (mode == 0x02) 80 else 60)
         val data = generatePIDValue(pidId)
         return when (data) {
             is OBDData.Numeric -> {
-                val value = data.value.toInt()
-                val resp = String.format("42 %02X %02X %02X",
-                    pidId, (value shr 8) and 0xFF, value and 0xFF)
-                DebugLogger.rx(resp)
-                // PID 0x02 = Freeze Frame DTC — format as DTC code
-                val display = if (pidId == 0x02) formatDtcCode(value) else "${data.value} ${data.unit}".trim()
+                val v = data.value.toInt()
+                val modeResp = (mode + 0x40).toString(16).uppercase()
+                DebugLogger.rx(String.format("$modeResp %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF))
+                val display = if (pidId == 0x02) formatDtcCode(v) else "${data.value} ${data.unit}".trim()
                 Result.success(display)
             }
             else -> {
-                DebugLogger.rx("7F 02 11")
+                DebugLogger.rx("7F ${String.format("%02X", mode)} 11")
                 Result.failure(Exception("serviceNotSupported"))
             }
         }
     }
 
-    /** Convert a 2-byte DTC value to a human-readable code (e.g. 0x0170 → "P0170"). */
     private fun formatDtcCode(value: Int): String {
-        val category = when ((value shr 14) and 0x03) {
-            0 -> "P"; 1 -> "C"; 2 -> "B"; 3 -> "U"; else -> "?"
-        }
-        val d1 = (value shr 12) and 0x03
-        val d2 = (value shr 8) and 0x0F
-        val d3 = (value shr 4) and 0x0F
-        val d4 = value and 0x0F
-        return "$category$d1$d2$d3$d4"
+        val cat = when ((value shr 14) and 0x03) { 0 -> "P"; 1 -> "C"; 2 -> "B"; 3 -> "U"; else -> "?" }
+        return "$cat${(value shr 12) and 0x03}${(value shr 8) and 0x0F}${(value shr 4) and 0x0F}${value and 0x0F}"
     }
 
     // ── Mode 07: Pending DTCs ──────────────────────────────
-    override suspend fun readPendingDTCs(): Result<List<DTC>> {
-        DebugLogger.tx("07"); delay(100); DebugLogger.rx("47 01 01 71")
-        return Result.success(
-            listOf(
-                DTC(
-                    code = "P0171",
-                    description = "System Too Lean (Bank 1)",
-                    category = DTCCategory.POWERTRAIN,
-                    system = "Fuel/Air",
-                    severity = DTCSeverity.MEDIUM,
-                    status = DTCStatus.PENDING
-                )
-            )
-        )
-    }
+    override suspend fun readPendingDTCs(): Result<List<DTC>> =
+        mockResponse("07", "47 01 01 71", listOf(
+            mockDtc("P0171", "System Too Lean (Bank 1)", DTCCategory.POWERTRAIN, "Fuel/Air", DTCSeverity.MEDIUM, DTCStatus.PENDING)
+        ))
 
     // ── Mode 09: Vehicle Information ───────────────────────
 
-    override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
-        DebugLogger.tx("0900"); delay(100)
-        // Bitmap: InfoTypes 02, 04, 06, 0A are supported
-        // Bit 7=01,6=02,5=03,4=04,3=05,2=06,1=07,0=08 of byte 0
-        // Byte 0: 01010100 = 0x54 → bits for 02,04,06
-        // Byte 1: 00000010 = 0x02 → bit for 0A
-        DebugLogger.rx("49 00 54 02")
-        return Result.success(
-            VehicleInfoDiscovery(
-                rawHex = "49 00 54 02",
-                supportedTypes = setOf(0x02, 0x04, 0x06, 0x0A)
-            )
-        )
-    }
+    override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> =
+        mockResponse("0900", "49 00 54 02",
+            VehicleInfoDiscovery("49 00 54 02", setOf(0x02, 0x04, 0x06, 0x0A)))
 
     override suspend fun readVehicleInfoType(infoType: Int): Result<String> {
-        val command = String.format("09%02X", infoType)
+        val cmd = String.format("09%02X", infoType)
         return when (infoType) {
-            0x02 -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36")
-                Result.success("1HGBH41JXMN109186")
-            }
-            0x04 -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00")
-                Result.success("3292\n0-10")
-            }
-            0x06 -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 06 02 A1 B2 C3 D4 E5 F6 A7 B8")
-                Result.success("A1B2C3D4\nE5F6A7B8")
-            }
-            0x0A -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
-                Result.success("ECM")
-            }
-            0x01 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 01 01"); Result.success("01") }
-            0x03 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 03 01"); Result.success("01") }
-            0x05 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 05 01"); Result.success("01") }
-            0x07 -> { DebugLogger.tx(command); delay(80); DebugLogger.rx("49 07 01"); Result.success("01") }
-            0x08 -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 08 01 A1 B2 C3 D4")
-                Result.success("A1 B2 C3 D4")
-            }
-            0x0B -> {
-                DebugLogger.tx(command); delay(100)
-                DebugLogger.rx("49 0B 01 A1 B2 C3 D4")
-                Result.success("A1 B2 C3 D4")
-            }
-            else -> {
-                DebugLogger.tx(command); delay(80)
-                DebugLogger.rx(String.format("49 %02X 00", infoType))
-                Result.success("—")
-            }
+            0x02 -> mockResponse(cmd, "49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36", "1HGBH41JXMN109186")
+            0x04 -> mockResponse(cmd, "49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00", "3292\n0-10")
+            0x06 -> mockResponse(cmd, "49 06 02 A1 B2 C3 D4 E5 F6 A7 B8", "A1B2C3D4\nE5F6A7B8")
+            0x0A -> mockResponse(cmd, "49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", "ECM")
+            0x01, 0x03, 0x05, 0x07 -> mockResponse(cmd, String.format("49 %02X 01", infoType), "01")
+            0x08, 0x0B -> mockResponse(cmd, String.format("49 %02X 01 A1 B2 C3 D4", infoType), "A1 B2 C3 D4")
+            else -> mockResponse(cmd, String.format("49 %02X 00", infoType), "—")
         }
     }
+    // ── Helpers ────────────────────────────────────────────
+
+    /** Log TX → delay → log RX → return success. Default delay 100ms. */
+    private suspend fun <T> mockResponse(cmd: String, rx: String, result: T, delayMs: Long = 100): Result<T> {
+        DebugLogger.tx(cmd); delay(delayMs); DebugLogger.rx(rx)
+        return Result.success(result)
+    }
+
+    private fun mockDtc(code: String, desc: String, cat: DTCCategory, sys: String, sev: DTCSeverity, status: DTCStatus) =
+        DTC(code, desc, cat, sys, sev, status)
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
-    override suspend fun readPermanentDTCs(): Result<List<DTC>> {
-        DebugLogger.tx("0A"); delay(100); DebugLogger.rx("4A 00")
-        return Result.success(emptyList())
-    }
+    override suspend fun readPermanentDTCs(): Result<List<DTC>> =
+        mockResponse("0A", "4A 00", emptyList<DTC>())
 
     // ── PID value generation ───────────────────────────────
 
