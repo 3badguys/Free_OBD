@@ -91,14 +91,16 @@ class FreezeFrameViewModel(
                         )
                     } else {
                         // Initial load or segment switch failed — show all red blocks
-                        buildErrorStates(state.segment)
+                        buildErrorStates(state.segment, error)
                     }
                 }
             )
         }
     }
 
-    private fun buildErrorStates(segment: Int) {
+    private fun buildErrorStates(segment: Int, error: Throwable) {
+        val errorHex = (error as? com.freeobd.app.data.remote.NegativeResponseException)
+            ?.toHexString() ?: "ERR"
         val states = (1..32).map { offset ->
             val pidId = segment + offset
             val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
@@ -106,7 +108,7 @@ class FreezeFrameViewModel(
                 result = FreezeFramePidResult.Error("Segment not available"))
         }
         _uiState.value = FreezeFrameUiState(
-            segment = segment, bitmapHex = "7F",
+            segment = segment, bitmapHex = errorHex,
             supportedPids = emptySet(), pidStates = states,
             frameNumber = _uiState.value.frameNumber,
             hasMoreFrames = _uiState.value.hasMoreFrames, isLoading = false

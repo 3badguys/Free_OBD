@@ -259,6 +259,9 @@ class NegativeResponseException(
         append(")")
     }
 ) {
+    /** Hex representation for display in UI (e.g. "7F 09 11"). */
+    fun toHexString(): String = String.format("7F %02X %02X", service, responseCode)
+
     companion object {
         /** Human-readable descriptions for common NRC values (SAE J1979 / ISO 14229). */
         private fun responseCodeDescription(code: Int): String = when (code) {

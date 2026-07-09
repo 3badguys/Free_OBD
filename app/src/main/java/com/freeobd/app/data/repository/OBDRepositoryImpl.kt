@@ -194,10 +194,13 @@ class OBDRepositoryImpl(
         return runCatching {
             val command = String.format("01%02X", segment)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
-            val data = extractDataBytes(rawBytes)
-            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            val rawHex = rawBytes.toRawHexString()
+            val rawData = extractDataBytes(rawBytes)
+            // Bitmap is always 4 bytes (32 bits for 32 PIDs per segment).
+            // Extra trailing bytes are padding/checksum from the ECU.
+            val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
             LiveDataDiscovery(
-                rawHex = "41 ${String.format("%02X", segment)} $hex",
+                rawHex = rawHex,
                 supportedPids = parsePidBitmap(data, segment)
             )
         }
@@ -221,7 +224,8 @@ class OBDRepositoryImpl(
         return runCatching {
             val pidHex = String.format("%02X", pidId)
             val rawBytes = requireQueue().sendObdCommand("02$pidHex").getOrThrow()
-            parsePIDResponse(pidId, rawBytes) ?: OBDData.Unavailable
+            parsePIDResponse(pidId, rawBytes, mode = 0x02,
+                extraSkip = if (isNonCanProtocol()) 1 else 0) ?: OBDData.Unavailable
         }
     }
 
@@ -229,13 +233,15 @@ class OBDRepositoryImpl(
         return runCatching {
             val command = String.format("02%02X%02X", segment, frameNumber)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
-            val rawData = extractDataBytes(rawBytes)
-            // Non-CAN protocols echo the frame number as the first data byte
-            // in Mode 02 responses. Skip it to get the actual bitmap.
-            val data = if (isNonCanProtocol() && rawData.isNotEmpty()) rawData.copyOfRange(1, rawData.size) else rawData
-            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            // Non-CAN Mode 02 has a frame number echo byte after the PID.
+            // CAN Mode 02 handles the frame number at the protocol layer.
+            val rawHex = rawBytes.toRawHexString()
+            val rawData = extractDataBytes(rawBytes,
+                extraSkip = if (isNonCanProtocol()) 1 else 0)
+            // Bitmap is always 4 bytes. Trim trailing padding.
+            val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
             FreezeFrameDiscovery(
-                rawHex = "42 ${String.format("%02X", segment)} ${String.format("%02X", frameNumber)} $hex",
+                rawHex = rawHex,
                 supportedPids = parsePidBitmap(data, segment)
             )
         }
@@ -246,7 +252,8 @@ class OBDRepositoryImpl(
             val pidHex = String.format("%02X", pidId)
             val frameHex = String.format("%02X", frameNumber)
             val rawBytes = requireQueue().sendObdCommand("02$pidHex$frameHex").getOrThrow()
-            val parsed = parsePIDResponse(pidId, rawBytes)
+            val parsed = parsePIDResponse(pidId, rawBytes, mode = 0x02,
+                extraSkip = if (isNonCanProtocol()) 1 else 0)
             if (parsed is OBDData.Numeric) {
                 val formatted = PidFormatter.format(pidId, parsed.value, parsed.unit)
                 if (pidId == 0x02) PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao()) else formatted
@@ -265,14 +272,16 @@ class OBDRepositoryImpl(
     override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
         return runCatching {
             val rawBytes = requireQueue().sendObdCommand("0900").getOrThrow()
-            val rawData = extractDataBytes(rawBytes)
-            // Non-CAN protocols (1-5) include a message count byte before the
-            // bitmap data in Mode 09 responses. CAN protocols do not.
-            val data = if (isNonCanProtocol() && rawData.isNotEmpty()) rawData.copyOfRange(1, rawData.size) else rawData
-            val hex = data.joinToString(" ") { String.format("%02X", it) }
+            val rawHex = rawBytes.toRawHexString()
+            // Non-CAN protocols (1-5) insert a message count byte after the
+            // InfoType in Mode 09 responses. extraSkip=1 strips it.
+            val extraSkip = if (isNonCanProtocol()) 1 else 0
+            val rawData = extractDataBytes(rawBytes, extraSkip)
+            // Bitmap is always 4 bytes. Trim trailing padding.
+            val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
             val supported = parsePidBitmap(data, offset = 0)
             VehicleInfoDiscovery(
-                rawHex = "49 00 $hex",
+                rawHex = rawHex,
                 supportedTypes = supported
             )
         }
@@ -282,57 +291,77 @@ class OBDRepositoryImpl(
         return runCatching {
             val command = String.format("09%02X", infoType)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
-            val data = extractDataBytes(rawBytes)
-            formatInfoTypeResult(infoType, data)
+
+            when (infoType) {
+                // Multi-record types: each frame is an independent record.
+                // Multi-frame → each payload is a complete record.
+                // Single-frame → SAE J1979 [count][padded records] format.
+                0x04, 0x06, 0x0A -> {
+                    extractPerFramePayloads(rawBytes)
+                        .joinToString("\n") { r -> formatSingleRecord(infoType, r) }
+                        .ifBlank { "—" }
+                }
+                0x01, 0x03, 0x05, 0x09 -> {
+                    val data = extractDataBytes(rawBytes)
+                    formatInfoTypeResult(infoType, data)
+                }
+                else -> {
+                    val extraSkip = if (isNonCanProtocol()) 1 else 0
+                    val data = extractDataBytes(rawBytes, extraSkip)
+                    formatInfoTypeResult(infoType, data)
+                }
+            }
         }
     }
 
-    /**
-     * Parse the 0900 bitmap response into a set of supported InfoType IDs.
-     * Bit 7 of byte 0 = InfoType 0x01, bit 6 = 0x02, etc.
-     */
+    /** Format a single record payload from a Mode 09 multi-record response. */
+    private fun formatSingleRecord(infoType: Int, payload: ByteArray): String = when (infoType) {
+        0x04, 0x0A -> // Calibration ID / ECU Name — ASCII
+            String(payload, Charsets.US_ASCII).trimEnd(' ', ' ')
+        0x06 -> // CVN — hex
+            payload.joinToString("") { String.format("%02X", it) }
+        else -> payload.joinToString(" ") { "%02X".format(it) }
+    }
+
     /**
      * Format a single InfoType's data bytes into a human-readable string.
      * Type-specific formatting for known types; generic hex dump for others.
      */
     private fun formatInfoTypeResult(infoType: Int, data: ByteArray): String {
+        if (data.isEmpty()) return "—"
         return when (infoType) {
-            0x02 -> { // VIN — ASCII text, skip count prefix byte
-                val payload = if (data.size > 1) data.copyOfRange(1, data.size) else data
-                String(payload, Charsets.US_ASCII).trim()
-                    .replace(" ", "").ifBlank { "—" }
-            }
-            0x04 -> { // Calibration IDs — multi-record ASCII
-                val ids = parseCalibrationIds(data)
-                ids.joinToString("\n") { it.calibrationId }.ifBlank { "—" }
-            }
-            0x06 -> { // CVN — multi-record hex
-                val cvns = parseCvns(data)
-                cvns.joinToString("\n") { it.cvn }.ifBlank { "—" }
-            }
-            0x08 -> { // In-use performance tracking
-                if (data.size <= 1) "—"
-                else data.copyOfRange(1, data.size)
-                    .joinToString(" ") { String.format("%02X", it) }
-            }
-            0x0A -> { // ECU Names — similar to calibration IDs
-                val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
-                if (count == 0 || data.size < 2) return "—"
-                // Each record is typically 20 bytes ASCII
-                val recordSize = (data.size - 1) / count
-                (0 until count).map { i ->
-                    val start = 1 + i * recordSize
-                    val end = minOf(start + recordSize, data.size)
-                    String(data.copyOfRange(start, end), Charsets.US_ASCII)
-                        .trimEnd(' ', ' ')
-                }.joinToString("\n").ifBlank { "—" }
-            }
-            else -> { // Generic: show as hex + ASCII interpretation
+            // single byte
+            0x01, 0x03, 0x05, 0x09 -> (data[0].toInt() and 0xFF).toString()
+            else -> {
                 val hex = data.joinToString(" ") { String.format("%02X", it) }
                 val ascii = String(data, Charsets.US_ASCII)
                     .replace(" ", "").trim()
                 if (ascii.isNotBlank()) "$hex  ($ascii)" else hex
             }
+        }
+    }
+
+    /** Raw ELM327 ASCII response as a trimmed string for display. */
+    private fun ByteArray.toRawHexString(): String =
+        String(this, Charsets.US_ASCII).replace(">", "").replace("\r", " ").trim()
+
+    /**
+     * Extract per-frame data payloads from a multi-frame Mode 09 response.
+     * Each hex line is decoded; mode + InfoType + record index are stripped
+     * (extraSkip=1 on top of the standard 2-byte header).
+     */
+    private fun extractPerFramePayloads(rawBytes: ByteArray): List<ByteArray> {
+        val rawString = String(rawBytes, Charsets.US_ASCII)
+        val lines = rawString.split("\r", "\n").filter { it.isNotBlank() }
+        return lines.mapNotNull { line ->
+            val hexOnly = line.replace(">", "").replace(" ", "").trim()
+            if (hexOnly.length < 6) return@mapNotNull null
+            val decoded = try {
+                ByteUtils.fromHexString(hexOnly)
+            } catch (_: Exception) {
+                return@mapNotNull null
+            }
+            extractFromDecoded(decoded, extraSkip = 1)
         }
     }
 
@@ -346,21 +375,31 @@ class OBDRepositoryImpl(
      * Parse a Mode 01/02 PID response.
      *
      * Expected response format (CAN, with headers enabled):
-     *   "41 XX YY ZZ ..." where 41 = Mode 01 response, XX = PID, YY ZZ = data bytes
+     *   Mode 01: "41 XX YY ZZ ..." where 41 = Mode 01 response, XX = PID, YY ZZ = data bytes
+     *   Mode 02: "42 XX FF YY ZZ ..." where 42 = Mode 02 response, XX = PID, FF = frame number
      *
      * Returns null if the response is invalid or unsupported.
+     *
+     * @param pidId The PID identifier.
+     * @param rawBytes Raw response bytes from the ELM327.
+     * @param mode The OBD mode (0x01 or 0x02). Used for metadata lookup.
      */
-    private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray): OBDData? {
-        val metadata = runBlocking { database.pidMetadataDao().getById(pidId, 0x01) }
+    private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray, mode: Int = 0x01, extraSkip: Int = 0): OBDData? {
+        val metadata = runBlocking { database.pidMetadataDao().getById(pidId, mode) }
 
-        // Extract data bytes after the mode+PID response header
-        // Format: "41 XX [data bytes]" or "42 XX [data bytes]"
-        val dataBytes = extractDataBytes(rawBytes)
+        // Extract data bytes after the mode response header.
+        // Mode 02 callers pass extraSkip=1 to strip the frame number echo byte.
+        val dataBytes = extractDataBytes(rawBytes, extraSkip)
 
         if (dataBytes.isEmpty()) return null
 
+        // Trim to expected data length from metadata to strip padding/checksum bytes
+        // that some ECUs/protocols append after the real data payload.
+        val expectedLen = metadata?.bytesCount ?: dataBytes.size
+        val trimmed = if (dataBytes.size > expectedLen) dataBytes.copyOf(expectedLen) else dataBytes
+
         // Compute numeric value from the data bytes per SAE J1979 formulas
-        val value = computePIDValue(pidId, dataBytes)
+        val value = computePIDValue(pidId, trimmed)
         val unit = metadata?.unit ?: ""
 
         return OBDData.Numeric(value = value, unit = unit, pidId = pidId)
@@ -383,7 +422,12 @@ class OBDRepositoryImpl(
      * 4. Skips the mode response byte + 1 subsequent byte (PID, sub-function, etc.)
      * 5. Returns the remaining data payload
      */
-    private fun extractDataBytes(rawBytes: ByteArray): ByteArray {
+    /**
+     * @param extraSkip Additional bytes to skip per line after the standard
+     *   mode header. Used for protocol-specific bytes (e.g. non-CAN Mode 09
+     *   message count byte) or multi-record index bytes.
+     */
+    private fun extractDataBytes(rawBytes: ByteArray, extraSkip: Int = 0): ByteArray {
         val rawString = String(rawBytes, Charsets.US_ASCII)
 
         // Process each line separately — ELM327 status messages like "SEARCHING..."
@@ -403,7 +447,7 @@ class OBDRepositoryImpl(
             } catch (_: Exception) {
                 continue
             }
-            extractFromDecoded(decoded)?.let { allData.addAll(it.toList()) }
+            extractFromDecoded(decoded, extraSkip)?.let { allData.addAll(it.toList()) }
         }
         if (allData.isNotEmpty()) return allData.toByteArray()
 
@@ -417,7 +461,7 @@ class OBDRepositoryImpl(
             } catch (_: Exception) {
                 return ByteArray(0)
             }
-            extractFromDecoded(decoded)?.let { return it }
+            extractFromDecoded(decoded, extraSkip)?.let { return it }
         }
 
         return ByteArray(0)
@@ -425,14 +469,17 @@ class OBDRepositoryImpl(
 
     /**
      * Find the OBD mode response marker in decoded bytes and return
-     * the data payload after mode + 1 subsequent byte, or null if
-     * no valid response marker is found.
+     * the data payload, or null if no valid response marker is found.
+     *
+     * Always skips 2 bytes after the mode marker (mode + 1 sub-byte: PID,
+     * InfoType, or count). Use [extraSkip] for additional per-frame bytes
+     * such as Mode 02 frame number echo or non-CAN Mode 09 message count.
      */
-    private fun extractFromDecoded(decoded: ByteArray): ByteArray? {
+    private fun extractFromDecoded(decoded: ByteArray, extraSkip: Int = 0): ByteArray? {
         for (i in decoded.indices) {
             val b = decoded[i].toInt() and 0xFF
             if (b in 0x41..0x4F) {
-                val dataStart = i + 2
+                val dataStart = i + 2 + extraSkip
                 if (dataStart < decoded.size) {
                     return decoded.copyOfRange(dataStart, decoded.size)
                 }
@@ -534,73 +581,9 @@ class OBDRepositoryImpl(
         return try { block() } catch (_: Exception) { null }
     }
 
-    // ── Mode 09 response parsers ─────────────────────────
-
-    /**
-     * Parse Mode 09 PID 04 (Calibration ID) response.
-     *
-     * Format: [count] [16 bytes record1] [16 bytes record2] ...
-     * Each record is an ASCII string, null/space padded to 16 bytes.
-     */
-    private fun parseCalibrationIds(data: ByteArray): List<CalibrationId> {
-        if (data.isEmpty()) return emptyList()
-        val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
-        if (count == 0) return emptyList()
-
-        val recordSize = 16
-        val available = (data.size - 1) / recordSize
-        val actual = minOf(count, available)
-        if (actual == 0) return emptyList()
-
-        val ids = mutableListOf<CalibrationId>()
-        for (i in 0 until actual) {
-            val start = 1 + i * recordSize
-            val end = minOf(start + recordSize, data.size)
-            val record = data.copyOfRange(start, end)
-            // Trim trailing nulls and whitespace
-            val text = String(record, Charsets.US_ASCII)
-                .trimEnd(' ', ' ')
-            if (text.isNotBlank()) {
-                val ecuName = if (ids.isEmpty()) "ECM" else "ECM_$i"
-                ids.add(CalibrationId(ecuName, text))
-            }
-        }
-        return ids
-    }
-
-    /**
-     * Parse Mode 09 PID 06 (CVN) response.
-     *
-     * Format: [count] [record1] [record2] ...
-     * Each record is raw bytes; record size = remaining bytes / count.
-     * Typical record size is 4 bytes, but some ECUs use 2.
-     */
-    private fun parseCvns(data: ByteArray): List<CalibrationVerificationNumber> {
-        if (data.isEmpty()) return emptyList()
-        val count = (data[0].toInt() and 0xFF).coerceIn(0, 16)
-        if (count == 0) return emptyList()
-
-        val remaining = data.size - 1
-        if (remaining < count) return emptyList()
-        val recordSize = remaining / count
-
-        val cvns = mutableListOf<CalibrationVerificationNumber>()
-        for (i in 0 until count) {
-            val start = 1 + i * recordSize
-            val end = start + recordSize
-            val record = data.copyOfRange(start, end)
-            val hex = record.joinToString("") { String.format("%02X", it) }
-            if (hex.isNotBlank()) {
-                val ecuName = if (cvns.isEmpty()) "ECM" else "ECM_$i"
-                cvns.add(CalibrationVerificationNumber(ecuName, hex))
-            }
-        }
-        return cvns
-    }
-
     override suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String> {
         val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
-        val hex = String(rawBytes, Charsets.US_ASCII).replace(">", "").replace("\r", " ").trim()
+        val hex = rawBytes.toRawHexString()
         val count = DTCParser.extractDtcCount(rawBytes)
         val dataBytes = extractDataBytes(rawBytes)
         val codes = DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }

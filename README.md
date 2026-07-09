@@ -22,7 +22,7 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | :--- | :--- |
 | **🎮 Demo 模式** | 内置模拟数据引擎，无需 OBD 适配器即可完整体验所有功能 |
 | **蓝牙设备扫描** | 同时扫描经典蓝牙（SPP）和低功耗蓝牙（BLE）OBD 适配器 |
-| **协议自动/手动选择** | 支持 ATSP0-ATSP9 共 10 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW |
+| **协议自动/手动选择** | 支持 ELM327 全部 13 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW、J1939 等 |
 | **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init，K 线自动跳过 ATH1 |
 | **加密握手 (AT+SETCRYPT)** | 自动识别并从 AT+VERSION 提取挑战值并计算密钥 |
 | **电压检测** | ATRV 读取电压，低电压时弹窗警告 |
@@ -137,6 +137,100 @@ ECU 拒绝 OBD 请求时返回 `7F [service] [code]`，常见错误码：
 
 ---
 
+## 📐 OBD 响应数据格式与解析
+
+
+### extraSkip 机制
+
+`extractFromDecoded` 标准跳过 2 字节（mode 响应 + 1 个子字节），`extraSkip` 用于声明额外跳过的字节：
+
+| 场景 | extraSkip | 跳过内容 | 备注 |
+| :--- | :--- | :--- | :--- |
+| **Mode 01 / Mode 09 CAN** | `0` | mode + PID / InfoType | 无额外字节 |
+| **Mode 02 非 CAN** | `1` | mode + PID + **帧号回显** | 帧号作为数据字节回显，需跳过 |
+| **Mode 09 非 CAN（计数类）** | `0` | mode + InfoType | `0901`, `0903`, `0905`, `0909` — 无消息计数 |
+| **Mode 09 非 CAN（数据类）** | `1` | mode + InfoType + **消息计数** | `0900`, `0902`, `0904`, `0906`, `0908`, `090A`, `090B` |
+| **Mode 09 多帧多记录** | `1` | mode + InfoType + **记录索引** | `0904`, `0906`, `090A` 的每条帧 |
+
+> `extraSkip = 0` 为默认值，所有调用处必须显式声明额外跳过的字节数，不在提取层做隐式协议推断。
+
+---
+
+### Mode 02：CAN vs 非 CAN 帧号回显
+
+Mode 02 响应格式为 `42 PID FRAME [data]`，其中 `FRAME` 是冻结帧编号（0x00–0xFF）。
+
+| 协议 | 帧号位置 | extraSkip | 原因 |
+| :--- | :--- | :--- | :--- |
+| **CAN**（协议 6–A） | CAN 多帧协议层处理 | **0** | 帧号由 ISO 15765-2 流控帧携带，不在 OBD 数据区重复 |
+| **非 CAN**（协议 1–5） | OBD 数据区首字节 | **1** | K 线 / J1850 无多帧协议层，帧号作为独立数据字节回显 |
+
+示例 — 查询 Mode 02 PID 02 帧 00（命令 `020200`）：
+
+```
+CAN     响应: 42 02 00 01 70 3B
+              ↑↑ ↑↑      ↑↑↑↑
+              md PID      data + padding
+              (帧号 00 由 CAN 层处理，不在 OBD 数据中)
+
+非 CAN  响应: 42 02 00 01 70 C3
+              ↑↑ ↑↑ ↑↑   ↑↑↑↑
+              md PID FRM  data + padding
+              (帧号 00 作为数据字节回显，extraSkip=1 跳过)
+```
+
+---
+
+### Mode 09 InfoType 04/06/0A：多帧 vs 单帧
+
+#### 多帧响应
+
+ECU 用多条 CAN 帧返回多个记录，每帧带自己的记录索引：
+
+```
+0904 多帧示例（4 个校准 ID）：
+
+87 F1 10 49 04 01 33 32 39 32 A6    → 记录 ① "3292"
+87 F1 10 49 04 02 30 2D 31 30 95    → 记录 ② "0-10"
+87 F1 10 49 04 03 4B 30 2A 30 AD    → 记录 ③ "K0*0"
+87 F1 10 49 04 04 30 30 30 30 99    → 记录 ④ "0000"
+
+每帧结构: CAN ID(3) | PCI(1) | 49(mode) | 04(InfoType) | IDX(record) | DATA... | PAD(CAN填充)
+                                                 ↑ extraSkip=1 跳过     ↑ payload
+```
+
+处理方式：`extractPerFramePayloads` 逐帧提取 payload → `formatSingleRecord` 格式化 → `joinToString("\n")` 拼接显示。
+
+#### 单帧响应（SAE J1979 标准格式）
+
+```
+49 04 [count] [record1_16字节补齐] [record2_16字节补齐] ...
+```
+
+---
+
+### 响应尾部填充/校验字节
+
+部分 ECU 或协议在有效数据后追加额外字节，导致数据比预期长：
+
+| 命令 | 原始响应 | 尾部额外字节 | 处理方式 |
+| :--- | :--- | :--- | :--- |
+| **0101** | `41 01 01 00 00 00` | `00 00 00`（CAN 8 字节补齐） | metadata.bytesCount=4 → 裁剪到 4 字节 |
+| **0103** | `41 03 01 00 CA` | `CA`（校验和） | metadata.bytesCount=2 → 裁剪到 2 字节 |
+| **0903** | `49 03 04 D4` | `D4`（校验和） | 首字节取值 → `4` |
+| **0905** | `49 05 01 D3` | `D3`（校验和） | 首字节取值 → `1` |
+| **020200** | `42 02 00 01 70 3B` | `3B`（校验和） | metadata.bytesCount=2 → 裁剪到 2 字节 |
+| **Bitmap 类** | `41 00 BE 1F A8 13 xx` | `xx`（尾部填充） | bitmap 固定取前 4 字节 |
+
+**统一处理策略**：
+
+- **PID 数值类**（Mode 01/02）：`parsePIDResponse` 用 `metadata.bytesCount` 裁剪
+- **Bitmap 类**（0100/0120/0200/0900）：3 个 discovery 方法统一 `copyOf(4)`
+- **Mode 09 计数值类**（0903/0905）：`formatInfoTypeResult` 只读 `data[0]`
+- **Mode 09 多记录类**（0904/0906/090A）：多帧场景逐帧 payload 直接格式化，不拼接裁剪
+
+---
+
 ## 🚀 构建与运行
 
 ### 环境要求
@@ -194,7 +288,7 @@ cd Free_OBD
 - 首次使用需授予蓝牙权限
 - 确保 OBD 适配器已插入车辆 OBD-II 接口并通电
 - 在设备列表中选择你的适配器（通常名为 OBDII、ELM327、Vgate 等）
-- **协议选择**：默认 ATSP0（自动检测）。摩托车 K 线建议手动选 ATSP3（ISO 9141-2）、ATSP4（KWP 快）或 ATSP5（KWP 慢）
+- **协议选择**：默认 ATSP0（自动检测）。摩托车 K 线建议手动选 ATSP3（ISO 9141-2）、ATSP4（KWP 5Bd）或 ATSP5（KWP Fast）
 - 展开 **Advanced Options** 可设置 ECU 地址、启用调试日志
 - 连接成功后，**Connected** 卡片显示电压、适配器固件版本、协商协议
 
@@ -271,7 +365,7 @@ cd Free_OBD
 1. **权限**：Android 12+ 需要 BLUETOOTH_SCAN + BLUETOOTH_CONNECT，Android < 12 需要 BLUETOOTH + BLUETOOTH_ADMIN + ACCESS_FINE_LOCATION
 2. **适配器质量**：廉价 ELM327 克隆版可能存在响应延迟。内置 100ms 命令间延迟 + 10s 首命令超时
 3. **车辆兼容性**：不同车型支持的 PID 集差异较大，应用会自动发现并只显示可用的 PID
-4. **K 线 / 摩托车**：并非所有摩托车都支持标准 OBD-II PID。国四及更新车型一般支持，建议先试 ATSP3
+4. **K 线 / 摩托车**：并非所有摩托车都支持标准 OBD-II PID。国四及更新车型一般支持，建议先试 ATSP3（ISO 9141-2）。如果不行，依次尝试 ATSP5（KWP Fast）和 ATSP4（KWP 5Bd）
 5. **CAN 协议车型**：2008 年以后的汽油车和 2004 年以后的柴油车普遍支持 CAN 协议（ATSP6/ATSP7）
 6. **Demo 模式限制**：模拟数据仅供体验，车速和 RPM 等参数为随机生成，不代表真实车辆状态
 7. **加密密钥**：个别廉价 ELM327 克隆版需要动态识别并计算密钥，无需手动配置。标准 ELM327 适配器自动跳过此步骤

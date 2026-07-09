@@ -49,15 +49,17 @@ class LiveDataViewModel(
             val segment = _uiState.value.segment
             activeRepo.discoverLiveDataPIDs(segment).fold(
                 onSuccess = { discovery -> buildStates(discovery) },
-                onFailure = {
-                    // 7F or I/O error — show all PIDs as unsupported (red blocks)
-                    buildErrorStates(segment)
+                onFailure = { error ->
+                    // Negative response or I/O error — show all PIDs as unsupported (red blocks)
+                    buildErrorStates(segment, error)
                 }
             )
         }
     }
 
-    private fun buildErrorStates(segment: Int) {
+    private fun buildErrorStates(segment: Int, error: Throwable) {
+        val errorHex = (error as? com.freeobd.app.data.remote.NegativeResponseException)
+            ?.toHexString() ?: "ERR"
         val states = (1..32).map { offset ->
             val pidId = segment + offset
             val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
@@ -65,7 +67,7 @@ class LiveDataViewModel(
                 result = LiveDataPidResult.Error("Segment not available"))
         }
         _uiState.value = LiveDataUiState(
-            segment = segment, bitmapHex = "7F",
+            segment = segment, bitmapHex = errorHex,
             supportedPids = emptySet(), pidStates = states, isLoading = false
         )
     }
