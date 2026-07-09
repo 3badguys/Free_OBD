@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.model.DTC
+import com.freeobd.app.domain.model.DTCStatus
 import com.freeobd.app.domain.repository.OBDRepository
 import com.freeobd.app.domain.usecase.ReadDTCUseCase
 import kotlinx.coroutines.flow.*
@@ -46,9 +47,9 @@ class DtcViewModel(
             _uiState.value = DtcUiState.Loading
 
             val repo = activeRepo
-            val stored = repo.readStoredDTCs().getOrDefault(emptyList())
-            val pending = repo.readPendingDTCs().getOrDefault(emptyList())
-            val permanent = repo.readPermanentDTCs().getOrDefault(emptyList())
+            val (stored, storedHex) = activeRepo.readDtcWithHex("03", DTCStatus.STORED)
+            val (pending, pendingHex) = activeRepo.readDtcWithHex("07", DTCStatus.PENDING)
+            val (permanent, permanentHex) = activeRepo.readDtcWithHex("0A", DTCStatus.PERMANENT)
 
             if (stored.isEmpty() && pending.isEmpty() && permanent.isEmpty()) {
                 _uiState.value = DtcUiState.NoCodes
@@ -57,7 +58,12 @@ class DtcViewModel(
                     storedDTCs = stored,
                     pendingDTCs = pending,
                     permanentDTCs = permanent,
-                    selectedTab = DtcTab.STORED
+                    selectedTab = DtcTab.STORED,
+                    responseHex = mapOf(
+                        DtcTab.STORED to storedHex,
+                        DtcTab.PENDING to pendingHex,
+                        DtcTab.PERMANENT to permanentHex
+                    )
                 )
             }
         }

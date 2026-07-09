@@ -248,6 +248,29 @@ private fun DtcTabsContent(
             }
         }
 
+        // Response hex card for the selected tab
+        val hex = state.responseHex[state.selectedTab] ?: "—"
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Surface)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    "${state.selectedTab.command} Response",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = StatusYellow
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = hex,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = OnBackground
+                )
+            }
+        }
+
         // DTC list for the selected tab
         val dtcs = when (state.selectedTab) {
             DtcTab.STORED -> state.storedDTCs

@@ -65,7 +65,7 @@ val appModule = module {
     factory { ReadDTCUseCase(get()) }
     // ── ViewModels ─────────────────────────────────────────
 
-    viewModel { BluetoothViewModel(get(), get(), get()) }
+    viewModel { BluetoothViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get()) }
     viewModel { DebugViewModel(get()) }
     viewModel { DtcViewModel(get(), get()) }

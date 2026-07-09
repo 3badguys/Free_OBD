@@ -1,5 +1,6 @@
 package com.freeobd.app.data.mock
 
+import com.freeobd.app.data.local.AppDatabase
 import com.freeobd.app.domain.repository.OBDRepository
 
 /**
@@ -26,9 +27,9 @@ object DemoModeState {
         get() = if (isDemoMode) mockObdRepository else realObdRepository
 
     /** Enable demo mode and create the mock repository. */
-    fun enableDemoMode() {
+    fun enableDemoMode(database: AppDatabase) {
         if (mockObdRepository == null) {
-            mockObdRepository = MockOBDRepository()
+            mockObdRepository = MockOBDRepository(database)
         }
         isDemoMode = true
     }

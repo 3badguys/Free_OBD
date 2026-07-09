@@ -1,6 +1,7 @@
 package com.freeobd.app.domain.repository
 
 import com.freeobd.app.domain.model.DTC
+import com.freeobd.app.domain.model.DTCStatus
 import com.freeobd.app.domain.model.OBDData
 import com.freeobd.app.domain.model.ProtocolInfo
 import com.freeobd.app.domain.model.FreezeFrameDiscovery
@@ -161,4 +162,7 @@ interface OBDRepository {
 
     /** Read permanent DTCs (cannot be cleared via Mode 04 — require repair). */
     suspend fun readPermanentDTCs(): Result<List<DTC>>
+
+    /** Read DTCs and raw hex in a single command — avoids double-sending the mode query. */
+    suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String>
 }

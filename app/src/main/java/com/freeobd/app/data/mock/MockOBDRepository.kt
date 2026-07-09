@@ -1,6 +1,8 @@
 package com.freeobd.app.data.mock
 
+import com.freeobd.app.data.local.AppDatabase
 import com.freeobd.app.data.remote.DebugLogger
+import com.freeobd.app.data.remote.PidFormatter
 import com.freeobd.app.domain.model.*
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.delay
@@ -9,11 +11,10 @@ import kotlin.random.Random
 
 /**
  * Mock OBD repository that generates simulated vehicle data for demo/testing.
- *
- * Produces realistic, slowly-varying sensor values mimicking an idling engine
- * with occasional throttle input. No actual hardware required.
  */
-class MockOBDRepository : OBDRepository {
+class MockOBDRepository(
+    private val database: AppDatabase
+) : OBDRepository {
 
     // Internal state for realistic simulation
     private var baseRpm = 800.0
@@ -37,26 +38,21 @@ class MockOBDRepository : OBDRepository {
         mockResponse("ATE0", "OK", Unit, 50)
         mockResponse("ATL0", "OK", Unit, 50)
         // Simulate Yuming Electronics adapter with crypto challenge
-        val yumingResponse = buildString {
-            appendLine("Shenzhen Yuming Electronics Co., Ltd.")
-            appendLine("version:V1.0.0")
-            appendLine("device type:B02-Z")
-            appendLine("device name:OBDII")
-            appendLine("device mac:27:5A:C0:29:AD:5D")
-            appendLine("interface:v2.1")
-            appendLine("cust id:NONE")
-            append("crypt:844C10BB")
-        }
-        DebugLogger.tx("AT+VERSION"); delay(50); DebugLogger.rx(yumingResponse)
-        val responseBytes = yumingResponse.toByteArray(Charsets.US_ASCII)
+        val yumingLines = listOf(
+            "Shenzhen Yuming Electronics Co., Ltd.", "version:V1.0.0",
+            "device type:B02-Z", "device name:OBDII", "device mac:27:5A:C0:29:AD:5D",
+            "interface:v2.1", "cust id:NONE", "crypt:844C10BB"
+        )
+        mockResponse("AT+VERSION", yumingLines.joinToString("\n"), Unit, 50)
+        val responseBytes = yumingLines.joinToString("\n").toByteArray(Charsets.US_ASCII)
         if (com.freeobd.app.data.remote.YMOBDCrypto.isYumingAdapter(responseBytes)) {
             val challenge = com.freeobd.app.data.remote.YMOBDCrypto.extractCryptChallenge(responseBytes)
             if (challenge != null) {
                 val key = com.freeobd.app.data.remote.YMOBDCrypto.generateKey(challenge)
-                DebugLogger.tx("AT+SETCRYPT$key"); delay(50); DebugLogger.rx("OK")
+                mockResponse("AT+SETCRYPT$key", "OK", Unit, 50)
             }
         }
-        DebugLogger.tx(protocol); delay(50); DebugLogger.rx("OK")
+        mockResponse(protocol, "OK", Unit, 50)
         return Result.success(Unit)
     }
 
@@ -70,6 +66,7 @@ class MockOBDRepository : OBDRepository {
         mockResponse(command, "Manual TX not supported in demo mode", "Manual TX not supported in demo mode", 50)
 
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
+        mockResponse("0100", "SEARCHING...41 00 FE 1F A8 13", Unit, 100)
         mockResponse("ATDPN", "6", Unit, 50)
         mockResponse("ATDP", "ISO 15765-4 CAN (11 bit ID, 500 kbaud)", Unit, 50)
         return Result.success(ProtocolInfo("ISO 15765-4 CAN (11 bit ID, 500 kbaud)", "6"))
@@ -78,11 +75,8 @@ class MockOBDRepository : OBDRepository {
     // ── Mode 01: Current Data ──────────────────────────────
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         val pidHex = String.format("%02X", pidId)
-        DebugLogger.tx("01$pidHex")
-        delay(30)
         val data = generatePIDValue(pidId)
-        DebugLogger.rx("41 $pidHex [${mockDataHex(data)}]")
-        return Result.success(data)
+        return mockResponse("01$pidHex", "41 $pidHex [${mockDataHex(data)}]", data, 30)
     }
 
     override suspend fun readPIDs(pidIds: List<Int>): Map<Int, OBDData> {
@@ -125,10 +119,7 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 03: Stored DTCs ───────────────────────────────
     override suspend fun readStoredDTCs(): Result<List<DTC>> =
-        mockResponse("03", "43 02 01 02 03 04", listOf(
-            mockDtc("P0301", "Cylinder 1 Misfire Detected", DTCCategory.POWERTRAIN, "Ignition", DTCSeverity.HIGH, DTCStatus.STORED),
-            mockDtc("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", DTCCategory.POWERTRAIN, "Emissions", DTCSeverity.MEDIUM, DTCStatus.STORED)
-        ), 150)
+        Result.success(readDtcWithHex("03", DTCStatus.STORED).first)
 
     // ── Mode 04: Clear DTCs ────────────────────────────────
     override suspend fun clearDTCs(): Result<Unit> =
@@ -138,23 +129,13 @@ class MockOBDRepository : OBDRepository {
 
     override suspend fun discoverLiveDataPIDs(segment: Int): Result<LiveDataDiscovery> {
         val cmd = String.format("01%02X", segment)
-        DebugLogger.tx(cmd); delay(100)
         return when (segment) {
-            0x00 -> {
-                DebugLogger.rx("41 00 BE 1F A8 13")
-                Result.success(LiveDataDiscovery("41 00 BE 1F A8 13",
-                    setOf(0x01,0x03,0x04,0x05,0x06,0x07,0x0B,0x0C,0x0D,0x0E,0x0F,
-                          0x11,0x13,0x14,0x15,0x1C,0x1F,0x20)))
-            }
-            0x20 -> {
-                DebugLogger.rx("41 20 80 00 00 01")
-                Result.success(LiveDataDiscovery("41 20 80 00 00 01", setOf(0x21, 0x3F)))
-            }
-            else -> {
-                val sh = String.format("%02X", segment)
-                DebugLogger.rx("41 $sh 00 00 00 00 00")
-                Result.success(LiveDataDiscovery("41 $sh 00 00 00 00 00", emptySet()))
-            }
+            0x00 -> mockResponse(cmd, "41 00 FE 1F A8 13",
+                LiveDataDiscovery("41 00 FE 1F A8 13", setOf(0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x13,0x14,0x15,0x1C,0x1F,0x20)))
+            0x20 -> mockResponse(cmd, "41 20 80 00 00 01",
+                LiveDataDiscovery("41 20 80 00 00 01", setOf(0x21, 0x3F)))
+            else -> mockResponse(cmd, String.format("41 %02X 00 00 00 00 00", segment),
+                LiveDataDiscovery(String.format("41 %02X 00 00 00 00 00", segment), emptySet()))
         }
     }
 
@@ -169,25 +150,19 @@ class MockOBDRepository : OBDRepository {
 
     override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
         val cmd = String.format("02%02X%02X", segment, frameNumber)
-        DebugLogger.tx(cmd); delay(100)
         return when {
-            segment == 0x00 && frameNumber == 0 -> {
-                DebugLogger.rx("42 00 00 58 18 02")
-                Result.success(FreezeFrameDiscovery("42 00 00 58 18 02", setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11)))
-            }
-            segment == 0x00 && frameNumber == 1 -> {
-                DebugLogger.rx("42 00 01 08 18 00")
-                Result.success(FreezeFrameDiscovery("42 00 01 08 18 00", setOf(0x05, 0x0C, 0x0D)))
-            }
+            segment == 0x00 && frameNumber == 0 ->
+                mockResponse(cmd, "42 00 00 58 18 02", FreezeFrameDiscovery("42 00 00 58 18 02", setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11)))
+            segment == 0x00 && frameNumber == 1 ->
+                // Frame #1: triggered by P0420 — different PIDs from frame 0 (no 0x04)
+                mockResponse(cmd, "42 00 01 58 18 00", FreezeFrameDiscovery("42 00 01 58 18 00", setOf(0x02, 0x05, 0x0C, 0x0D)))
             frameNumber >= 2 -> {
-                DebugLogger.rx("7F 02 11")
+                DebugLogger.tx(cmd); delay(100); DebugLogger.rx("7F 02 11")
                 Result.failure(Exception("No more freeze frames"))
             }
             else -> {
-                val sh = String.format("%02X", segment)
-                val fh = String.format("%02X", frameNumber)
-                DebugLogger.rx("42 $sh $fh 00 00 00 00")
-                Result.success(FreezeFrameDiscovery("42 $sh $fh 00 00 00 00", emptySet()))
+                val sh = String.format("%02X", segment); val fh = String.format("%02X", frameNumber)
+                mockResponse(cmd, "42 $sh $fh 00 00 00 00", FreezeFrameDiscovery("42 $sh $fh 00 00 00 00", emptySet()))
             }
         }
     }
@@ -195,21 +170,22 @@ class MockOBDRepository : OBDRepository {
     override suspend fun readFreezeFramePID(pidId: Int, frameNumber: Int): Result<String> =
         mockPidResponse(0x02, pidId, frameNumber)
 
-    /**
-     * Shared mock helper for Mode 01/02 PID responses.
-     * Sends TX, generates a value, formats RX, and returns display string.
-     */
+    /** DTC codes per freeze frame (frame 0 = P0301, frame 1 = P0420). */
+    private fun dtcForFrame(frame: Int) = when (frame) { 0 -> 0x0301; 1 -> 0x0420; else -> 0x0301 }
+
+    /** Shared mock helper for Mode 01/02 PID responses. */
     private suspend fun mockPidResponse(mode: Int, pidId: Int, frameNumber: Int = 0): Result<String> {
         val cmd = if (mode == 0x02) String.format("02%02X%02X", pidId, frameNumber)
         else String.format("%02X%02X", mode, pidId)
         DebugLogger.tx(cmd); delay(if (mode == 0x02) 80 else 60)
-        val data = generatePIDValue(pidId)
+        val data = generatePIDValue(pidId, frameNumber)
         return when (data) {
             is OBDData.Numeric -> {
                 val v = data.value.toInt()
-                val modeResp = (mode + 0x40).toString(16).uppercase()
-                DebugLogger.rx(String.format("$modeResp %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF))
-                val display = if (pidId == 0x02) formatDtcCode(v) else "${data.value} ${data.unit}".trim()
+                val mr = (mode + 0x40).toString(16).uppercase()
+                DebugLogger.rx(String.format("$mr %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF))
+                val formatted = PidFormatter.format(pidId, v.toDouble(), data.unit)
+                val display = PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao())
                 Result.success(display)
             }
             else -> {
@@ -219,16 +195,9 @@ class MockOBDRepository : OBDRepository {
         }
     }
 
-    private fun formatDtcCode(value: Int): String {
-        val cat = when ((value shr 14) and 0x03) { 0 -> "P"; 1 -> "C"; 2 -> "B"; 3 -> "U"; else -> "?" }
-        return "$cat${(value shr 12) and 0x03}${(value shr 8) and 0x0F}${(value shr 4) and 0x0F}${value and 0x0F}"
-    }
-
     // ── Mode 07: Pending DTCs ──────────────────────────────
     override suspend fun readPendingDTCs(): Result<List<DTC>> =
-        mockResponse("07", "47 01 01 71", listOf(
-            mockDtc("P0171", "System Too Lean (Bank 1)", DTCCategory.POWERTRAIN, "Fuel/Air", DTCSeverity.MEDIUM, DTCStatus.PENDING)
-        ))
+        Result.success(readDtcWithHex("07", DTCStatus.PENDING).first)
 
     // ── Mode 09: Vehicle Information ───────────────────────
 
@@ -250,7 +219,7 @@ class MockOBDRepository : OBDRepository {
     }
     // ── Helpers ────────────────────────────────────────────
 
-    /** Log TX → delay → log RX → return success. Default delay 100ms. */
+    /** Log TX → delay → log each RX line → return success. Multi-line strings split on \n. */
     private suspend fun <T> mockResponse(cmd: String, rx: String, result: T, delayMs: Long = 100): Result<T> {
         DebugLogger.tx(cmd); delay(delayMs); DebugLogger.rx(rx)
         return Result.success(result)
@@ -261,7 +230,21 @@ class MockOBDRepository : OBDRepository {
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
     override suspend fun readPermanentDTCs(): Result<List<DTC>> =
-        mockResponse("0A", "4A 00", emptyList<DTC>())
+        Result.success(readDtcWithHex("0A", DTCStatus.PERMANENT).first)
+
+    override suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String> {
+        val (rx, codes) = when (modeHex) {
+            "03" -> "43 02 03 01 04 20" to listOf(
+                mockDtc("P0301", "Cylinder 1 Misfire Detected", DTCCategory.POWERTRAIN, "Ignition", DTCSeverity.HIGH, DTCStatus.STORED),
+                mockDtc("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", DTCCategory.POWERTRAIN, "Emissions", DTCSeverity.MEDIUM, DTCStatus.STORED))
+            "07" -> "47 01 01 71" to listOf(
+                mockDtc("P0171", "System Too Lean (Bank 1)", DTCCategory.POWERTRAIN, "Fuel/Air", DTCSeverity.MEDIUM, DTCStatus.PENDING))
+            "0A" -> "4A 00" to emptyList()
+            else -> "7F $modeHex 11" to emptyList()
+        }
+        mockResponse(modeHex, rx, Unit, 150)
+        return codes to rx
+    }
 
     // ── PID value generation ───────────────────────────────
 
@@ -272,27 +255,42 @@ class MockOBDRepository : OBDRepository {
         else -> "??"
     }
 
-    private fun generatePIDValue(pidId: Int): OBDData {
+    private fun generatePIDValue(pidId: Int, frameNumber: Int = 0): OBDData {
         return when (pidId) {
-            // 1-byte PIDs
+            0x01 -> OBDData.Numeric(0x0081.toDouble(), "", pidId)
+            0x02 -> OBDData.Numeric(dtcForFrame(frameNumber).toDouble(), "", pidId)
+            0x03 -> OBDData.Numeric(0x0202.toDouble(), "", pidId)
+            0x1C -> OBDData.Numeric(0x05.toDouble(), "", pidId)  // OBD-II compliant
+            // 1-byte PIDs — percentage type
             0x04 -> OBDData.Numeric(engineLoad, "%", pidId)
-            0x05 -> OBDData.Numeric(baseCoolantTemp, "°C", pidId)
-            0x0A -> OBDData.Numeric(fuelPressure, "kPa", pidId)
-            0x0B -> OBDData.Numeric(intakePressure, "kPa", pidId)
-            0x0D -> OBDData.Numeric(baseSpeed, "km/h", pidId)
-            0x0F -> OBDData.Numeric(intakeTemp, "°C", pidId)
             0x11 -> OBDData.Numeric(throttlePos, "%", pidId)
             0x2F -> OBDData.Numeric(fuelLevel, "%", pidId)
-            0x33 -> OBDData.Numeric(baroPressure, "kPa", pidId)
-            0x46 -> OBDData.Numeric(intakeTemp + 2, "°C", pidId) // Ambient ≈ intake + 2
+            0x43 -> OBDData.Numeric((engineLoad * 2.55).coerceAtMost(100.0), "%", pidId)
+            // 1-byte PIDs — temperature type (A-40)
+            0x05 -> OBDData.Numeric(baseCoolantTemp, "°C", pidId)
+            0x0F -> OBDData.Numeric(intakeTemp, "°C", pidId)
+            0x46 -> OBDData.Numeric(intakeTemp + 2, "°C", pidId)
             0x5C -> OBDData.Numeric(oilTemp, "°C", pidId)
+            // 1-byte PIDs — linear scaling
+            0x0A -> OBDData.Numeric(fuelPressure, "kPa", pidId)        // A*3
+            0x0B -> OBDData.Numeric(intakePressure, "kPa", pidId)       // A
+            0x0D -> OBDData.Numeric(baseSpeed, "km/h", pidId)           // A
+            0x33 -> OBDData.Numeric(baroPressure, "kPa", pidId)         // A
+            // 1-byte PIDs — offset scaling
+            0x0E -> OBDData.Numeric(10.0 + random.nextDouble(-2.0, 2.0), "°", pidId) // Timing advance
+            // 1-byte PIDs — fuel trim type ((A/1.28)-100)
+            0x06 -> OBDData.Numeric(-3.1, "%", pidId)  // STFT B1
+            0x07 -> OBDData.Numeric(2.3, "%", pidId)   // LTFT B1
+            0x08 -> OBDData.Numeric(-1.6, "%", pidId)  // STFT B2
+            0x09 -> OBDData.Numeric(1.9, "%", pidId)   // LTFT B2
             // 2-byte PIDs
-            0x0C -> OBDData.Numeric(baseRpm, "rpm", pidId)
-            0x10 -> OBDData.Numeric(mafRate, "g/s", pidId)
-            0x1F -> OBDData.Numeric(runTime, "s", pidId)
+            0x0C -> OBDData.Numeric(baseRpm, "rpm", pidId)             // (A*256+B)/4
+            0x10 -> OBDData.Numeric(mafRate, "g/s", pidId)             // (A*256+B)/100
+            0x1F -> OBDData.Numeric(runTime, "s", pidId)               // (A*256+B)
             0x21 -> OBDData.Numeric(152.3 + random.nextDouble(-1.0, 1.0), "km", pidId)
-            // Generic fallback — generate plausible numeric values for any PID
-            0x02 -> OBDData.Numeric(0x0170.toDouble(), "", pidId) // Freeze Frame DTC = P0170
+            0x22 -> OBDData.Numeric(3500.0 + random.nextDouble(-100.0, 100.0), "kPa", pidId) // Fuel rail pressure
+            0x42 -> OBDData.Numeric(13.8, "V", pidId)                  // Control module voltage
+            // Generic fallback
             else -> {
                 // Determine byte count by PID range (rough heuristic)
                 val bytes = when {

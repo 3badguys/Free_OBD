@@ -90,16 +90,27 @@ class FreezeFrameViewModel(
                             hasMoreFrames = false
                         )
                     } else {
-                        // Initial load or segment switch failed
-                        _uiState.value = FreezeFrameUiState(
-                            segment = state.segment,
-                            isLoading = false,
-                            error = error.message ?: "Failed to read freeze frame"
-                        )
+                        // Initial load or segment switch failed — show all red blocks
+                        buildErrorStates(state.segment)
                     }
                 }
             )
         }
+    }
+
+    private fun buildErrorStates(segment: Int) {
+        val states = (1..32).map { offset ->
+            val pidId = segment + offset
+            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            FreezeFramePidState(pidId = pidId, description = desc, isSupported = false,
+                result = FreezeFramePidResult.Error("Segment not available"))
+        }
+        _uiState.value = FreezeFrameUiState(
+            segment = segment, bitmapHex = "7F",
+            supportedPids = emptySet(), pidStates = states,
+            frameNumber = _uiState.value.frameNumber,
+            hasMoreFrames = _uiState.value.hasMoreFrames, isLoading = false
+        )
     }
 
     private suspend fun buildStates(discovery: FreezeFrameDiscovery, committedFrame: Int, hasMoreFrames: Boolean) {

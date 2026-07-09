@@ -2,6 +2,7 @@ package com.freeobd.app.presentation.bluetooth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.freeobd.app.data.local.AppDatabase
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.data.mock.MockBluetoothRepository
 import com.freeobd.app.data.mock.MockOBDRepository
@@ -18,7 +19,8 @@ import kotlinx.coroutines.flow.*
 class BluetoothViewModel(
     private val connectBluetoothUseCase: ConnectBluetoothUseCase,
     private val bluetoothRepository: BluetoothRepository,
-    private val obdRepository: OBDRepository
+    private val obdRepository: OBDRepository,
+    private val database: AppDatabase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<BluetoothUiState>(BluetoothUiState.Idle)
@@ -29,7 +31,7 @@ class BluetoothViewModel(
     val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
 
     private val mockBtRepo by lazy { MockBluetoothRepository() }
-    private val mockObdRepo by lazy { MockOBDRepository() }
+    private val mockObdRepo by lazy { MockOBDRepository(database) }
 
     private val activeBtRepo: BluetoothRepository
         get() = if (_isDemoMode.value) mockBtRepo else bluetoothRepository
@@ -83,7 +85,7 @@ class BluetoothViewModel(
         _isDemoMode.value = !_isDemoMode.value
 
         if (_isDemoMode.value) {
-            DemoModeState.enableDemoMode()
+            DemoModeState.enableDemoMode(database)
         } else {
             DemoModeState.disableDemoMode()
         }

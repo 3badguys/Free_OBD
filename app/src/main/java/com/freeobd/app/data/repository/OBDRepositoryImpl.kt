@@ -97,35 +97,35 @@ class OBDRepositoryImpl(
         }
     }
 
+    /** Cached protocol number — used to detect non-CAN modes (1-5) for bitmap parsing. */
+    private var currentProtocolNumber: String = "A0"
+
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
         return runCatching {
             val queue = requireQueue()
 
-            // If protocol is still auto (not yet negotiated with the vehicle),
-            // send a real OBD command to force the ELM327 to detect the protocol.
-            var number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
-            if (number == "A0") {
-                // 0100 = Mode 01 PID 00 — query supported PIDs. All OBD-II vehicles
-                // must support this, and it forces the adapter to lock onto the
-                // vehicle's actual protocol.
-                // markFirstCommand grants the 10s timeout needed for auto-detect
-                // to try multiple protocols.
-                queue.markFirstCommand()
-                queue.sendRaw("0100")
-                delay(500)
-                number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
-            }
+            // Always send 0100 first to force the ELM327 to lock onto the
+            // vehicle's actual protocol before querying ATDP/ATDPN.
+            // markFirstCommand grants the 10s timeout needed for auto-detect
+            // and K-line 5-baud init. sendObdCommand waits for the '>' prompt,
+            // so no extra delay is needed.
+            queue.markFirstCommand()
+            queue.sendObdCommand("0100")
 
+            val number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
+            currentProtocolNumber = number
             val description = parseProtocolDescription(queue.sendRaw("ATDP").getOrThrow())
 
-            // Give the first OBD data command a 10s timeout.
-            // Critical for K-line (ATSP3/4/5): the ELM327 performs a slow
-            // 5-baud init on the first data command, which takes ~5 seconds.
-            // Without this, the 3s standard timeout cuts it off mid-init.
             queue.markFirstCommand()
-
             ProtocolInfo(description = description, number = number)
         }
+    }
+
+    /** True if the current protocol is non-CAN (1-5), requiring bitmap offset correction. */
+    /** True if the current protocol is non-CAN (1-5), which adds a count byte in Mode 09. */
+    private fun isNonCanProtocol(): Boolean {
+        val num = currentProtocolNumber.removePrefix("A").removePrefix("a")
+        return num.toIntOrNull()?.let { it in 1..5 } == true
     }
 
     /** Parse ATDPN response — returns the protocol letter/number (e.g. "A0"). */
@@ -208,7 +208,8 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(String.format("01%02X", pidId)).getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes)
             if (parsed is OBDData.Numeric) {
-                "${parsed.value} ${parsed.unit}".trim()
+                val formatted = PidFormatter.format(pidId, parsed.value, parsed.unit)
+                if (pidId == 0x02) PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao()) else formatted
             } else {
                 "No data"
             }
@@ -228,7 +229,10 @@ class OBDRepositoryImpl(
         return runCatching {
             val command = String.format("02%02X%02X", segment, frameNumber)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
-            val data = extractDataBytes(rawBytes)
+            val rawData = extractDataBytes(rawBytes)
+            // Non-CAN protocols echo the frame number as the first data byte
+            // in Mode 02 responses. Skip it to get the actual bitmap.
+            val data = if (isNonCanProtocol() && rawData.isNotEmpty()) rawData.copyOfRange(1, rawData.size) else rawData
             val hex = data.joinToString(" ") { String.format("%02X", it) }
             FreezeFrameDiscovery(
                 rawHex = "42 ${String.format("%02X", segment)} ${String.format("%02X", frameNumber)} $hex",
@@ -244,7 +248,8 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand("02$pidHex$frameHex").getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes)
             if (parsed is OBDData.Numeric) {
-                "${parsed.value} ${parsed.unit}".trim()
+                val formatted = PidFormatter.format(pidId, parsed.value, parsed.unit)
+                if (pidId == 0x02) PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao()) else formatted
             } else {
                 "No data"
             }
@@ -260,9 +265,12 @@ class OBDRepositoryImpl(
     override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
         return runCatching {
             val rawBytes = requireQueue().sendObdCommand("0900").getOrThrow()
-            val data = extractDataBytes(rawBytes)
+            val rawData = extractDataBytes(rawBytes)
+            // Non-CAN protocols (1-5) include a message count byte before the
+            // bitmap data in Mode 09 responses. CAN protocols do not.
+            val data = if (isNonCanProtocol() && rawData.isNotEmpty()) rawData.copyOfRange(1, rawData.size) else rawData
             val hex = data.joinToString(" ") { String.format("%02X", it) }
-            val supported = parseInfoTypeBitmap(data)
+            val supported = parsePidBitmap(data, offset = 0)
             VehicleInfoDiscovery(
                 rawHex = "49 00 $hex",
                 supportedTypes = supported
@@ -283,8 +291,6 @@ class OBDRepositoryImpl(
      * Parse the 0900 bitmap response into a set of supported InfoType IDs.
      * Bit 7 of byte 0 = InfoType 0x01, bit 6 = 0x02, etc.
      */
-    private fun parseInfoTypeBitmap(data: ByteArray): Set<Int> = parsePidBitmap(data, offset = 0)
-
     /**
      * Format a single InfoType's data bytes into a human-readable string.
      * Type-specific formatting for known types; generic hex dump for others.
@@ -385,34 +391,33 @@ class OBDRepositoryImpl(
         // Only the actual data line contains the hex-encoded OBD response.
         val lines = rawString.split("\r", "\n").filter { it.isNotBlank() }
 
+        // Collect data from all lines — multi-frame responses (e.g. Mode 09
+        // calibration IDs / VIN) span multiple CAN frames, each with its own
+        // mode+PID header. We concatenate the payload from each frame.
+        val allData = mutableListOf<Byte>()
         for (line in lines) {
             val hexOnly = line.replace(">", "").replace(" ", "").trim()
             if (hexOnly.length < 4) continue
-
             val decoded = try {
                 ByteUtils.fromHexString(hexOnly)
             } catch (_: Exception) {
-                continue // Not valid hex (e.g. "SEARCHING...") — skip this line
+                continue
             }
-
-            val result = extractFromDecoded(decoded)
-            if (result != null) return result
+            extractFromDecoded(decoded)?.let { allData.addAll(it.toList()) }
         }
+        if (allData.isNotEmpty()) return allData.toByteArray()
 
         // Fallback: try the entire response as a single hex blob.
-        // This handles adapters that don't emit line separators.
         val hexOnly = rawString
             .replace(">", "").replace("\r", "").replace("\n", "")
             .replace(" ", "").trim()
-
         if (hexOnly.length >= 4) {
             val decoded = try {
                 ByteUtils.fromHexString(hexOnly)
             } catch (_: Exception) {
                 return ByteArray(0)
             }
-            val result = extractFromDecoded(decoded)
-            if (result != null) return result
+            extractFromDecoded(decoded)?.let { return it }
         }
 
         return ByteArray(0)
@@ -446,26 +451,52 @@ class OBDRepositoryImpl(
         val d = (data.getOrNull(3)?.toInt()?.and(0xFF) ?: 0)
 
         return when (pidId) {
-            // 1-byte formulas
-            0x04 -> a * 100.0 / 255.0           // Engine load %
-            0x05 -> a - 40.0                     // Coolant temp °C
+            // 1-byte — percentage: A*100/255
+            0x04 -> a * 100.0 / 255.0           // Engine load
+            0x11 -> a * 100.0 / 255.0           // Throttle position
+            0x2F -> a * 100.0 / 255.0           // Fuel level
+            0x2C -> a * 100.0 / 255.0           // EGR commanded
+            0x2E -> a * 100.0 / 255.0           // EVAP purge
+            0x45 -> a * 100.0 / 255.0           // Relative throttle
+            0x47 -> a * 100.0 / 255.0           // Throttle B
+            0x49 -> a * 100.0 / 255.0           // APP D
+            0x4A -> a * 100.0 / 255.0           // APP E
+            0x4C -> a * 100.0 / 255.0           // Commanded throttle
+            0x5A -> a * 100.0 / 255.0           // Relative APP
+            // 1-byte — temperature: A-40
+            0x05 -> a - 40.0                     // Coolant temp
+            0x0F -> a - 40.0                     // Intake air temp
+            0x46 -> a - 40.0                     // Ambient air temp
+            0x5C -> a - 40.0                     // Oil temp
+            // 1-byte — timing: A/2-64
+            0x0E -> a / 2.0 - 64.0              // Timing advance
+            // 1-byte — linear
             0x0A -> a * 3.0                      // Fuel pressure kPa
             0x0B -> a.toDouble()                 // Intake pressure kPa
             0x0D -> a.toDouble()                 // Vehicle speed km/h
-            0x0F -> a - 40.0                     // Intake air temp °C
-            0x11 -> a * 100.0 / 255.0            // Throttle position %
-            0x2F -> a * 100.0 / 255.0            // Fuel level %
             0x33 -> a.toDouble()                 // Barometric pressure kPa
-            0x46 -> a - 40.0                     // Ambient air temp °C
-            0x5C -> a - 40.0                     // Oil temp °C
-            // 2-byte formulas
+            0x30 -> a.toDouble()                 // Warm-ups since clear
+            // 1-byte — fuel trim: (A/1.28)-100
+            0x06 -> a / 1.28 - 100.0             // STFT B1
+            0x07 -> a / 1.28 - 100.0             // LTFT B1
+            0x08 -> a / 1.28 - 100.0             // STFT B2
+            0x09 -> a / 1.28 - 100.0             // LTFT B2
+            // 2-byte — (A*256+B)/4
             0x0C -> ((a * 256) + b) / 4.0        // RPM
+            // 2-byte — (A*256+B)/100
             0x10 -> ((a * 256) + b) / 100.0      // MAF g/s
+            // 2-byte — (A*256+B) raw
             0x1F -> ((a * 256) + b).toDouble()   // Run time seconds
             0x21 -> ((a * 256) + b).toDouble()   // MIL distance km
-            // 4-byte formulas
+            0x31 -> ((a * 256) + b).toDouble()   // Distance since clear km
+            0x22 -> ((a * 256) + b) * 0.079      // Fuel rail pressure kPa
+            0x23 -> ((a * 256) + b) * 10.0       // Fuel rail (diesel) kPa
+            0x42 -> ((a * 256) + b) / 1000.0     // Control module voltage V
+            // 2-byte — (A*256+B)/20
+            0x5E -> ((a * 256) + b) / 20.0       // Engine fuel rate L/h
+            // 4-byte
             0x43 -> ((a * 256) + b) / 100.0      // Absolute load %
-            // Default: big-endian unsigned int
+            // Default: big-endian unsigned int (raw value, no formula)
             else -> {
                 var result = 0L
                 for (i in data.indices) {
@@ -479,8 +510,9 @@ class OBDRepositoryImpl(
     private suspend fun readDTCsFromMode(modeHex: String, status: DTCStatus): Result<List<DTC>> {
         return runCatching {
             val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
+            val count = DTCParser.extractDtcCount(rawBytes)
             val dataBytes = extractDataBytes(rawBytes)
-            DTCParser.parse(dataBytes, status).map { enrichDtc(it) }
+            DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
         }
     }
 
@@ -564,6 +596,15 @@ class OBDRepositoryImpl(
             }
         }
         return cvns
+    }
+
+    override suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String> {
+        val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
+        val hex = String(rawBytes, Charsets.US_ASCII).replace(">", "").replace("\r", " ").trim()
+        val count = DTCParser.extractDtcCount(rawBytes)
+        val dataBytes = extractDataBytes(rawBytes)
+        val codes = DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
+        return codes to hex
     }
 
     fun release() {

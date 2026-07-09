@@ -561,16 +561,19 @@ private fun DeviceCard(
 @Composable
 private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
     val protocols = listOf(
-        "ATSP0 (Auto)" to "Auto-detect",
-        "ATSP6 (CAN 11/500)" to "ISO 15765-4 CAN 11-bit 500kbps",
-        "ATSP7 (CAN 29/500)" to "ISO 15765-4 CAN 29-bit 500kbps",
-        "ATSP8 (CAN 11/250)" to "ISO 15765-4 CAN 11-bit 250kbps",
-        "ATSP9 (CAN 29/250)" to "ISO 15765-4 CAN 29-bit 250kbps",
+        "ATSP0 (Auto)" to "Automatic detection",
+        "ATSP1 (PWM)" to "SAE J1850 PWM (41.6 kbaud)",
+        "ATSP2 (VPW)" to "SAE J1850 VPW (10.4 kbaud)",
+        "ATSP3 (9141-2)" to "ISO 9141-2 (5 baud init)",
+        "ATSP4 (KWP 5Bd)" to "ISO 14230-4 KWP (5 baud init)",
         "ATSP5 (KWP Fast)" to "ISO 14230-4 KWP (fast init)",
-        "ATSP4 (KWP 5Bd)" to "ISO 14230-4 KWP (5-baud init)",
-        "ATSP3 (9141-2)" to "ISO 9141-2",
-        "ATSP2 (VPW)" to "SAE J1850 VPW",
-        "ATSP1 (PWM)" to "SAE J1850 PWM"
+        "ATSP6 (CAN 11/500)" to "ISO 15765-4 CAN (11-bit, 500 kbaud)",
+        "ATSP7 (CAN 29/500)" to "ISO 15765-4 CAN (29-bit, 500 kbaud)",
+        "ATSP8 (CAN 11/250)" to "ISO 15765-4 CAN (11-bit, 250 kbaud)",
+        "ATSP9 (CAN 29/250)" to "ISO 15765-4 CAN (29-bit, 250 kbaud)",
+        "ATSPA (J1939)" to "SAE J1939 CAN (29-bit, 250 kbaud)",
+        "ATSPB (User1)" to "User1 CAN (11-bit, 125 kbaud)",
+        "ATSPC (User2)" to "User2 CAN (11-bit, 50 kbaud)"
     )
 
     Card(

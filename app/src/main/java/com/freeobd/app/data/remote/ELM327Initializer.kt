@@ -107,7 +107,7 @@ class ELM327Initializer(
         )
 
         // Step 8: Enable CAN headers (CAN-only; skipped for K-line)
-        if (proto !in KLINE_PROTOCOLS) {
+        if (proto !in NON_CAN_PROTOCOLS) {
             steps.add(InitStep("ATH1 (enable CAN headers)", "ATH1", 200L))
         }
 
@@ -129,11 +129,12 @@ class ELM327Initializer(
     companion object {
         private val VALID_PROTOCOLS = setOf(
             "ATSP0", "ATSP1", "ATSP2", "ATSP3", "ATSP4",
-            "ATSP5", "ATSP6", "ATSP7", "ATSP8", "ATSP9"
+            "ATSP5", "ATSP6", "ATSP7", "ATSP8", "ATSP9",
+            "ATSPA", "ATSPB", "ATSPC"
         )
 
-        /** K-line based protocols (ISO 9141-2 / KWP2000). */
-        private val KLINE_PROTOCOLS = setOf("ATSP3", "ATSP4", "ATSP5")
+        /** Non-CAN protocols — ATH1 is skipped for these. */
+        private val NON_CAN_PROTOCOLS = setOf("ATSP1", "ATSP2", "ATSP3", "ATSP4", "ATSP5")
     }
 }
 

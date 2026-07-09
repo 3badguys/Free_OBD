@@ -49,15 +49,25 @@ class LiveDataViewModel(
             val segment = _uiState.value.segment
             activeRepo.discoverLiveDataPIDs(segment).fold(
                 onSuccess = { discovery -> buildStates(discovery) },
-                onFailure = { error ->
-                    _uiState.value = LiveDataUiState(
-                        segment = segment,
-                        isLoading = false,
-                        error = error.message ?: "Failed to read live data"
-                    )
+                onFailure = {
+                    // 7F or I/O error — show all PIDs as unsupported (red blocks)
+                    buildErrorStates(segment)
                 }
             )
         }
+    }
+
+    private fun buildErrorStates(segment: Int) {
+        val states = (1..32).map { offset ->
+            val pidId = segment + offset
+            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            LiveDataPidState(pidId = pidId, description = desc, isSupported = false,
+                result = LiveDataPidResult.Error("Segment not available"))
+        }
+        _uiState.value = LiveDataUiState(
+            segment = segment, bitmapHex = "7F",
+            supportedPids = emptySet(), pidStates = states, isLoading = false
+        )
     }
 
     private suspend fun buildStates(discovery: LiveDataDiscovery) {

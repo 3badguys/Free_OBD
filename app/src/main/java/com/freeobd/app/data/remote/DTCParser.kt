@@ -31,22 +31,24 @@ object DTCParser {
     /**
      * Parse a raw Mode 03/07/0A response into a list of DTCs.
      *
-     * @param rawData The raw response bytes starting after the mode + count bytes.
-     * @param status The DTC status category (stored, pending, permanent).
+     * @param rawData  The raw response bytes starting after the mode + count bytes.
+     * @param maxCount Maximum number of DTCs to parse (from the response count byte).
+     *                 Set to 0 to parse all available data.
+     * @param status   The DTC status category (stored, pending, permanent).
      * @return List of parsed DTCs. Malformed codes are skipped with a log warning.
      */
-    fun parse(rawData: ByteArray, status: DTCStatus): List<DTC> {
+    fun parse(rawData: ByteArray, maxCount: Int = 0, status: DTCStatus): List<DTC> {
         val dtcs = mutableListOf<DTC>()
 
         if (rawData.size < 2) return dtcs
 
-        // Walk through the data 2 bytes at a time
         var offset = 0
-        while (offset + 1 < rawData.size) {
+        var parsed = 0
+        while (offset + 1 < rawData.size && (maxCount == 0 || parsed < maxCount)) {
             val byte1 = rawData[offset].toInt() and 0xFF
             val byte2 = rawData[offset + 1].toInt() and 0xFF
 
-            // Skip zero-pairs (end of list marker on some ECUs)
+            // Skip zero-pairs (no DTC / end of list marker)
             if (byte1 == 0 && byte2 == 0) {
                 offset += 2
                 continue
@@ -55,6 +57,7 @@ object DTCParser {
             val dtc = parseDtcBytes(byte1, byte2, status)
             if (dtc != null) {
                 dtcs.add(dtc)
+                parsed++
             } else {
                 android.util.Log.w("DTCParser", "Malformed DTC bytes: $byte1 $byte2")
             }
@@ -124,15 +127,21 @@ object DTCParser {
     }
 
     /**
-     * Try to extract the DTC count from a Mode 03 response header.
-     * The count byte indicates how many DTCs follow (raw format: DTC_COUNT = byte - 0x40).
+     * Extract the DTC count from a raw ELM327 hex response (ASCII text).
+     * Searches for the mode response marker (0x43–0x4A) and reads the
+     * following byte as the DTC count. Works on both CAN and non-CAN protocols.
      */
-    fun extractDtcCount(responseHeader: ByteArray): Int {
-        if (responseHeader.isEmpty()) return 0
-        // For CAN protocol: 43 xx yy zz, where the count is encoded
-        val count = responseHeader[0].toInt() and 0xFF
-        // On CAN, the actual count = (response byte) - 0x40
-        // Each DTC is 2 bytes, so we can validate against data length
-        return if (count > 0x40) count - 0x40 else count
+    fun extractDtcCount(rawBytes: ByteArray): Int {
+        val text = String(rawBytes, Charsets.US_ASCII).replace(">", "").trim()
+        val hex = text.replace(" ", "")
+        for (i in hex.indices step 2) {
+            if (i + 4 > hex.length) break
+            val b = hex.substring(i, i + 2).toIntOrNull(16) ?: continue
+            if (b in 0x43..0x4A) {
+                val countByte = hex.substring(i + 2, i + 4).toIntOrNull(16) ?: continue
+                return (countByte and 0xFF).coerceIn(0, 255)
+            }
+        }
+        return 0
     }
 }
