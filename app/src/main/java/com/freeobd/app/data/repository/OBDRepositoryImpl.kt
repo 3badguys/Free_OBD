@@ -582,12 +582,19 @@ class OBDRepositoryImpl(
     }
 
     override suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String> {
-        val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
-        val hex = rawBytes.toRawHexString()
-        val count = DTCParser.extractDtcCount(rawBytes)
-        val dataBytes = extractDataBytes(rawBytes)
-        val codes = DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
-        return codes to hex
+        return try {
+            val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
+            val hex = rawBytes.toRawHexString()
+            val count = DTCParser.extractDtcCount(rawBytes)
+            val dataBytes = extractDataBytes(rawBytes)
+            val codes = DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
+            codes to hex
+        } catch (e: Exception) {
+            // Negative response (e.g. 7F 07 11) or I/O error — return empty list
+            // with the error hex so the UI can show which mode is unsupported.
+            val errorHex = (e as? NegativeResponseException)?.toHexString() ?: "ERR"
+            emptyList<DTC>() to errorHex
+        }
     }
 
     fun release() {

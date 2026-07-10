@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.local.AppDatabase
 import com.freeobd.app.data.mock.DemoModeState
+import com.freeobd.app.data.remote.NegativeResponseException
 import com.freeobd.app.domain.model.LiveDataDiscovery
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.async
@@ -58,8 +59,7 @@ class LiveDataViewModel(
     }
 
     private fun buildErrorStates(segment: Int, error: Throwable) {
-        val errorHex = (error as? com.freeobd.app.data.remote.NegativeResponseException)
-            ?.toHexString() ?: "ERR"
+        val errorHex = (error as? NegativeResponseException)?.toHexString() ?: "ERR"
         val states = (1..32).map { offset ->
             val pidId = segment + offset
             val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
