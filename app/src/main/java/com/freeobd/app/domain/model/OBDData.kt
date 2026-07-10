@@ -25,6 +25,12 @@ sealed interface OBDData {
         val pidId: Int
     ) : OBDData
 
+    /** Raw byte array for non-numeric PIDs (bit-fields, enums, DTCs). */
+    data class RawBytes(
+        val bytes: ByteArray,
+        val pidId: Int
+    ) : OBDData
+
     /** Bitmap representing support status for a group of PIDs. */
     data class Bitmap(
         val supportedPids: Set<Int>,

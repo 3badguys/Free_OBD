@@ -153,8 +153,7 @@ class OBDRepositoryImpl(
         return runCatching {
             val pidHex = String.format("%02X", pidId)
             val rawBytes = requireQueue().sendObdCommand("01$pidHex").getOrThrow()
-            val parsed = parsePIDResponse(pidId, rawBytes)
-            parsed ?: OBDData.Unavailable
+            parsePIDResponse(pidId, rawBytes)
         }
     }
 
@@ -210,12 +209,8 @@ class OBDRepositoryImpl(
         return runCatching {
             val rawBytes = requireQueue().sendObdCommand(String.format("01%02X", pidId)).getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes)
-            if (parsed is OBDData.Numeric) {
-                val formatted = PidFormatter.format(pidId, parsed.value, parsed.unit)
-                if (pidId == 0x02) PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao()) else formatted
-            } else {
-                "No data"
-            }
+            if (parsed is OBDData.Unavailable) return@runCatching "No data"
+            PidFormatter.format(parsed, database.dtcDefinitionDao())
         }
     }
 
@@ -225,7 +220,7 @@ class OBDRepositoryImpl(
             val pidHex = String.format("%02X", pidId)
             val rawBytes = requireQueue().sendObdCommand("02$pidHex").getOrThrow()
             parsePIDResponse(pidId, rawBytes, mode = 0x02,
-                extraSkip = if (isNonCanProtocol()) 1 else 0) ?: OBDData.Unavailable
+                extraSkip = if (isNonCanProtocol()) 1 else 0)
         }
     }
 
@@ -254,12 +249,8 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand("02$pidHex$frameHex").getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes, mode = 0x02,
                 extraSkip = if (isNonCanProtocol()) 1 else 0)
-            if (parsed is OBDData.Numeric) {
-                val formatted = PidFormatter.format(pidId, parsed.value, parsed.unit)
-                if (pidId == 0x02) PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao()) else formatted
-            } else {
-                "No data"
-            }
+            if (parsed is OBDData.Unavailable) return@runCatching "No data"
+            PidFormatter.format(parsed, database.dtcDefinitionDao())
         }
     }
 
@@ -315,12 +306,28 @@ class OBDRepositoryImpl(
     }
 
     /** Format a single record payload from a Mode 09 multi-record response. */
-    private fun formatSingleRecord(infoType: Int, payload: ByteArray): String = when (infoType) {
-        0x04, 0x0A -> // Calibration ID / ECU Name — ASCII
-            String(payload, Charsets.US_ASCII).trimEnd(' ', ' ')
-        0x06 -> // CVN — hex
-            payload.joinToString("") { String.format("%02X", it) }
-        else -> payload.joinToString(" ") { "%02X".format(it) }
+    private fun formatSingleRecord(infoType: Int, payload: ByteArray): String {
+        // Strip trailing padding/filler bytes (e.g. A6, 95, AD, 99) that some
+        // ECUs append after the data payload in each CAN frame.
+        val trimmed = payload.trimTrailingNonPrintable()
+        return when (infoType) {
+            0x04, 0x0A -> // Calibration ID / ECU Name — ASCII
+                String(trimmed, Charsets.US_ASCII).trimEnd(' ', ' ')
+            0x06 -> // CVN — hex
+                trimmed.joinToString("") { String.format("%02X", it) }
+            else -> trimmed.joinToString(" ") { "%02X".format(it) }
+        }
+    }
+
+    /** Remove trailing bytes that fall outside the printable ASCII range (0x20–0x7E). */
+    private fun ByteArray.trimTrailingNonPrintable(): ByteArray {
+        var end = size
+        while (end > 0) {
+            val b = this[end - 1].toInt() and 0xFF
+            if (b in 0x20..0x7E) break
+            end--
+        }
+        return if (end == size) this else copyOf(end)
     }
 
     /**
@@ -384,25 +391,27 @@ class OBDRepositoryImpl(
      * @param rawBytes Raw response bytes from the ELM327.
      * @param mode The OBD mode (0x01 or 0x02). Used for metadata lookup.
      */
-    private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray, mode: Int = 0x01, extraSkip: Int = 0): OBDData? {
-        val metadata = runBlocking { database.pidMetadataDao().getById(pidId, mode) }
+    private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray, mode: Int = 0x01, extraSkip: Int = 0): OBDData {
+        var metadata = runBlocking { database.pidMetadataDao().getById(pidId, mode) }
+        // Mode 02 freeze frame uses the same PID definitions as Mode 01.
+        // Fall back so that bytesCount trim still works for PIDs not
+        // explicitly listed under mode 2 in pid_definitions.json (e.g. 0x03).
+        if (metadata == null && mode == 0x02) {
+            metadata = runBlocking { database.pidMetadataDao().getById(pidId, 0x01) }
+        }
 
         // Extract data bytes after the mode response header.
         // Mode 02 callers pass extraSkip=1 to strip the frame number echo byte.
         val dataBytes = extractDataBytes(rawBytes, extraSkip)
 
-        if (dataBytes.isEmpty()) return null
+        if (dataBytes.isEmpty()) return OBDData.Unavailable
 
         // Trim to expected data length from metadata to strip padding/checksum bytes
         // that some ECUs/protocols append after the real data payload.
         val expectedLen = metadata?.bytesCount ?: dataBytes.size
         val trimmed = if (dataBytes.size > expectedLen) dataBytes.copyOf(expectedLen) else dataBytes
 
-        // Compute numeric value from the data bytes per SAE J1979 formulas
-        val value = computePIDValue(pidId, trimmed)
-        val unit = metadata?.unit ?: ""
-
-        return OBDData.Numeric(value = value, unit = unit, pidId = pidId)
+        return computePIDValue(pidId, trimmed, metadata?.unit ?: "")
     }
 
     /**
@@ -490,66 +499,75 @@ class OBDRepositoryImpl(
 
     /**
      * Compute the numeric value from PID data bytes using the standard SAE J1979 formulas.
+     *
+     * For non-numeric PIDs (bit-fields, multi-field enums) this returns
+     * [OBDData.RawBytes] so the formatter layer can parse individual fields
+     * without lossy Double round-tripping.
      */
-    private fun computePIDValue(pidId: Int, data: ByteArray): Double {
+    private fun computePIDValue(pidId: Int, data: ByteArray, unit: String): OBDData {
         val a = (data.getOrNull(0)?.toInt()?.and(0xFF) ?: 0)
         val b = (data.getOrNull(1)?.toInt()?.and(0xFF) ?: 0)
         val c = (data.getOrNull(2)?.toInt()?.and(0xFF) ?: 0)
         val d = (data.getOrNull(3)?.toInt()?.and(0xFF) ?: 0)
 
         return when (pidId) {
+            // Non-numeric PIDs — keep raw bytes for structured formatting
+            0x01 -> OBDData.RawBytes(bytes = data, pidId = pidId)             // Monitor status (MIL + DTC count)
+            0x02 -> OBDData.RawBytes(bytes = data, pidId = pidId)             // Freeze Frame DTC code
+            0x03 -> OBDData.RawBytes(bytes = data, pidId = pidId)             // Fuel system status (bank 1 + bank 2)
+
             // 1-byte — percentage: A*100/255
-            0x04 -> a * 100.0 / 255.0           // Engine load
-            0x11 -> a * 100.0 / 255.0           // Throttle position
-            0x2F -> a * 100.0 / 255.0           // Fuel level
-            0x2C -> a * 100.0 / 255.0           // EGR commanded
-            0x2E -> a * 100.0 / 255.0           // EVAP purge
-            0x45 -> a * 100.0 / 255.0           // Relative throttle
-            0x47 -> a * 100.0 / 255.0           // Throttle B
-            0x49 -> a * 100.0 / 255.0           // APP D
-            0x4A -> a * 100.0 / 255.0           // APP E
-            0x4C -> a * 100.0 / 255.0           // Commanded throttle
-            0x5A -> a * 100.0 / 255.0           // Relative APP
+            0x04 -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Engine load
+            0x11 -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Throttle position
+            0x2F -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Fuel level
+            0x2C -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // EGR commanded
+            0x2E -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // EVAP purge
+            0x45 -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Relative throttle
+            0x47 -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Throttle B
+            0x49 -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // APP D
+            0x4A -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // APP E
+            0x4C -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Commanded throttle
+            0x5A -> OBDData.Numeric(a * 100.0 / 255.0, unit, pidId)           // Relative APP
             // 1-byte — temperature: A-40
-            0x05 -> a - 40.0                     // Coolant temp
-            0x0F -> a - 40.0                     // Intake air temp
-            0x46 -> a - 40.0                     // Ambient air temp
-            0x5C -> a - 40.0                     // Oil temp
+            0x05 -> OBDData.Numeric(a - 40.0, unit, pidId)                     // Coolant temp
+            0x0F -> OBDData.Numeric(a - 40.0, unit, pidId)                     // Intake air temp
+            0x46 -> OBDData.Numeric(a - 40.0, unit, pidId)                     // Ambient air temp
+            0x5C -> OBDData.Numeric(a - 40.0, unit, pidId)                     // Oil temp
             // 1-byte — timing: A/2-64
-            0x0E -> a / 2.0 - 64.0              // Timing advance
+            0x0E -> OBDData.Numeric(a / 2.0 - 64.0, unit, pidId)              // Timing advance
             // 1-byte — linear
-            0x0A -> a * 3.0                      // Fuel pressure kPa
-            0x0B -> a.toDouble()                 // Intake pressure kPa
-            0x0D -> a.toDouble()                 // Vehicle speed km/h
-            0x33 -> a.toDouble()                 // Barometric pressure kPa
-            0x30 -> a.toDouble()                 // Warm-ups since clear
+            0x0A -> OBDData.Numeric(a * 3.0, unit, pidId)                      // Fuel pressure kPa
+            0x0B -> OBDData.Numeric(a.toDouble(), unit, pidId)                 // Intake pressure kPa
+            0x0D -> OBDData.Numeric(a.toDouble(), unit, pidId)                 // Vehicle speed km/h
+            0x33 -> OBDData.Numeric(a.toDouble(), unit, pidId)                 // Barometric pressure kPa
+            0x30 -> OBDData.Numeric(a.toDouble(), unit, pidId)                 // Warm-ups since clear
             // 1-byte — fuel trim: (A/1.28)-100
-            0x06 -> a / 1.28 - 100.0             // STFT B1
-            0x07 -> a / 1.28 - 100.0             // LTFT B1
-            0x08 -> a / 1.28 - 100.0             // STFT B2
-            0x09 -> a / 1.28 - 100.0             // LTFT B2
+            0x06 -> OBDData.Numeric(a / 1.28 - 100.0, unit, pidId)             // STFT B1
+            0x07 -> OBDData.Numeric(a / 1.28 - 100.0, unit, pidId)             // LTFT B1
+            0x08 -> OBDData.Numeric(a / 1.28 - 100.0, unit, pidId)             // STFT B2
+            0x09 -> OBDData.Numeric(a / 1.28 - 100.0, unit, pidId)             // LTFT B2
             // 2-byte — (A*256+B)/4
-            0x0C -> ((a * 256) + b) / 4.0        // RPM
+            0x0C -> OBDData.Numeric(((a * 256) + b) / 4.0, unit, pidId)        // RPM
             // 2-byte — (A*256+B)/100
-            0x10 -> ((a * 256) + b) / 100.0      // MAF g/s
+            0x10 -> OBDData.Numeric(((a * 256) + b) / 100.0, unit, pidId)      // MAF g/s
             // 2-byte — (A*256+B) raw
-            0x1F -> ((a * 256) + b).toDouble()   // Run time seconds
-            0x21 -> ((a * 256) + b).toDouble()   // MIL distance km
-            0x31 -> ((a * 256) + b).toDouble()   // Distance since clear km
-            0x22 -> ((a * 256) + b) * 0.079      // Fuel rail pressure kPa
-            0x23 -> ((a * 256) + b) * 10.0       // Fuel rail (diesel) kPa
-            0x42 -> ((a * 256) + b) / 1000.0     // Control module voltage V
+            0x1F -> OBDData.Numeric(((a * 256) + b).toDouble(), unit, pidId)   // Run time seconds
+            0x21 -> OBDData.Numeric(((a * 256) + b).toDouble(), unit, pidId)   // MIL distance km
+            0x31 -> OBDData.Numeric(((a * 256) + b).toDouble(), unit, pidId)   // Distance since clear km
+            0x22 -> OBDData.Numeric(((a * 256) + b) * 0.079, unit, pidId)      // Fuel rail pressure kPa
+            0x23 -> OBDData.Numeric(((a * 256) + b) * 10.0, unit, pidId)       // Fuel rail (diesel) kPa
+            0x42 -> OBDData.Numeric(((a * 256) + b) / 1000.0, unit, pidId)     // Control module voltage V
             // 2-byte — (A*256+B)/20
-            0x5E -> ((a * 256) + b) / 20.0       // Engine fuel rate L/h
+            0x5E -> OBDData.Numeric(((a * 256) + b) / 20.0, unit, pidId)       // Engine fuel rate L/h
             // 4-byte
-            0x43 -> ((a * 256) + b) / 100.0      // Absolute load %
+            0x43 -> OBDData.Numeric(((a * 256) + b) / 100.0, unit, pidId)      // Absolute load %
             // Default: big-endian unsigned int (raw value, no formula)
             else -> {
                 var result = 0L
                 for (i in data.indices) {
                     result = (result shl 8) or (data[i].toLong() and 0xFF)
                 }
-                result.toDouble()
+                OBDData.Numeric(result.toDouble(), unit, pidId)
             }
         }
     }
@@ -603,4 +621,3 @@ class OBDRepositoryImpl(
         commandQueue = null
     }
 }
-

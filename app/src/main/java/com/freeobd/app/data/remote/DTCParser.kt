@@ -69,29 +69,42 @@ object DTCParser {
     }
 
     /**
+     * Format a 2-byte DTC into a human-readable code string (e.g. "P0301").
+     *
+     *   Bit: 15 14 13 12 11 10  9  8   7  6  5  4   3  2  1  0
+     *        ├─┘ ├─┘ ├──────┘ ├──────────┘ ├──────────┘
+     *        Cat  K   Hundred     Tens         Ones
+     *
+     *   Cat: 0=Powertrain, 1=Chassis, 2=Body, 3=Network
+     *   K:   thousands digit (0-3)
+     */
+    fun formatDtcCode(byte1: Int, byte2: Int): String {
+        val cat = when ((byte1 shr 6) and 0x03) {
+            0 -> "P"; 1 -> "C"; 2 -> "B"; 3 -> "U"; else -> "?"
+        }
+        val d1 = (byte1 shr 4) and 0x03
+        val d2 = (byte1 and 0x0F).toString(16).uppercase()
+        val d3 = ((byte2 shr 4) and 0x0F).toString(16).uppercase()
+        val d4 = (byte2 and 0x0F).toString(16).uppercase()
+        return "$cat$d1$d2$d3$d4"
+    }
+
+    /**
      * Parse a single 2-byte DTC pair into a DTC object.
      *
      * @return Parsed DTC, or null if the bytes represent an invalid code.
      */
     private fun parseDtcBytes(byte1: Int, byte2: Int, status: DTCStatus): DTC? {
-        val categoryBits = (byte1 shr 6) and 0x03
-        val firstDigit = ((byte1 shr 4) and 0x03).toString()
-        val secondDigit = (byte1 and 0x0F).toString(16).uppercase()
-        val thirdDigit = ((byte2 shr 4) and 0x0F).toString(16).uppercase()
-        val fourthDigit = (byte2 and 0x0F).toString(16).uppercase()
+        val code = formatDtcCode(byte1, byte2)
+        if (code[0] == '?' || code.length != 5) return null
 
-        val category = when (categoryBits) {
+        val category = when ((byte1 shr 6) and 0x03) {
             0 -> DTCCategory.POWERTRAIN
             1 -> DTCCategory.CHASSIS
             2 -> DTCCategory.BODY
             3 -> DTCCategory.NETWORK
-            else -> return null // Invalid category
+            else -> return null
         }
-
-        val code = "${category.code}$firstDigit$secondDigit$thirdDigit$fourthDigit"
-
-        // Basic validation: code should be 5 characters (letter + 4 hex digits)
-        if (code.length != 5) return null
 
         return DTC(
             code = code,

@@ -347,7 +347,7 @@ cd Free_OBD
 2. ATE0             关闭命令回显
 3. ATL0             关闭换行符
 4. AT+VERSION       扩展版本信息；自动提取 crypt: 挑战值
-5. AT+SETCRYPT      根据 crypt: 挑战值自动计算密钥并发送（仅 Yuming 适配器）
+5. AT+SETCRYPT      根据 crypt: 挑战值自动计算密钥并发送
 6. ATSPx            协议选择（ATSP0 = 自动检测）
 7. ATH1             CAN 头（仅 CAN 协议发送，K 线 ATSP3/4/5 跳过）
 8. ATSH             ECU 头地址（可选，配置了才发）

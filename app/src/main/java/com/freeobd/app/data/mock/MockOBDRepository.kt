@@ -184,9 +184,15 @@ class MockOBDRepository(
                 val v = data.value.toInt()
                 val mr = (mode + 0x40).toString(16).uppercase()
                 DebugLogger.rx(String.format("$mr %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF))
-                val formatted = PidFormatter.format(pidId, v.toDouble(), data.unit)
-                val display = PidFormatter.enrichDescription(formatted, database.dtcDefinitionDao())
-                Result.success(display)
+                val formatted = PidFormatter.format(data)
+                Result.success(formatted)
+            }
+            is OBDData.RawBytes -> {
+                val mr = (mode + 0x40).toString(16).uppercase()
+                val hex = data.bytes.joinToString(" ") { String.format("%02X", it) }
+                DebugLogger.rx(String.format("$mr %02X %s", pidId, hex))
+                val formatted = PidFormatter.format(data, database.dtcDefinitionDao())
+                Result.success(formatted)
             }
             else -> {
                 DebugLogger.rx("7F ${String.format("%02X", mode)} 11")
@@ -257,9 +263,15 @@ class MockOBDRepository(
 
     private fun generatePIDValue(pidId: Int, frameNumber: Int = 0): OBDData {
         return when (pidId) {
-            0x01 -> OBDData.Numeric(0x0081.toDouble(), "", pidId)
-            0x02 -> OBDData.Numeric(dtcForFrame(frameNumber).toDouble(), "", pidId)
-            0x03 -> OBDData.Numeric(0x0202.toDouble(), "", pidId)
+            0x01 -> OBDData.RawBytes(bytes = byteArrayOf(0x01.toByte()), pidId = pidId)
+            0x02 -> {
+                val dtcCode = dtcForFrame(frameNumber)
+                OBDData.RawBytes(bytes = byteArrayOf(
+                    ((dtcCode shr 8) and 0xFF).toByte(),
+                    (dtcCode and 0xFF).toByte()
+                ), pidId = pidId)
+            }
+            0x03 -> OBDData.RawBytes(bytes = byteArrayOf(0x02.toByte(), 0x00.toByte()), pidId = pidId)
             0x1C -> OBDData.Numeric(0x05.toDouble(), "", pidId)  // OBD-II compliant
             // 1-byte PIDs — percentage type
             0x04 -> OBDData.Numeric(engineLoad, "%", pidId)
