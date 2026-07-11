@@ -5,9 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -91,9 +92,10 @@ fun BluetoothScreen(
     // Protocol & Advanced config — accordion style (only one open at a time)
     var showProtocolPicker by remember { mutableStateOf(false) }
     var showAdvancedOptions by remember { mutableStateOf(false) }
-    var selectedProtocol by remember { mutableStateOf("ATSP0 (Auto)") }
-    var selectedTransport by remember { mutableStateOf("SPP") }
-    var ecuAddress by remember { mutableStateOf("") }
+    var selectedProtocol by remember { mutableStateOf(viewModel.protocolDisplay) }
+    var selectedTransport by remember { mutableStateOf(viewModel.selectedTransport) }
+    var ecuAddress by remember { mutableStateOf(viewModel.ecuAddress) }
+    var showResponseHeaders by remember { mutableStateOf(viewModel.showResponseHeaders) }
     val debugLoggingEnabled by com.freeobd.app.data.remote.DebugLogger.enabledFlow.collectAsState()
 
     Scaffold(
@@ -195,6 +197,7 @@ fun BluetoothScreen(
                         selectedProtocol = selectedProtocol,
                         selectedTransport = selectedTransport,
                         ecuAddress = ecuAddress,
+                        showResponseHeaders = showResponseHeaders,
                         debugLoggingEnabled = debugLoggingEnabled,
                         showProtocolPicker = showProtocolPicker,
                         showAdvancedOptions = showAdvancedOptions,
@@ -212,9 +215,13 @@ fun BluetoothScreen(
                         },
                         onProtocolSelected = { display ->
                             selectedProtocol = display
+                            viewModel.protocolDisplay = display
                             showProtocolPicker = false
                         },
-                        onTransportSelected = { selectedTransport = it },
+                        onTransportSelected = {
+                            selectedTransport = it
+                            viewModel.selectedTransport = it
+                        },
                         onToggleProtocolPicker = { open ->
                             showProtocolPicker = open
                             if (open) showAdvancedOptions = false
@@ -223,7 +230,15 @@ fun BluetoothScreen(
                             showAdvancedOptions = open
                             if (open) showProtocolPicker = false
                         },
-                        onEcuAddressChanged = { ecuAddress = it },
+                        onEcuAddressChanged = {
+                            ecuAddress = it
+                            viewModel.ecuAddress = it
+                        },
+                        onShowResponseHeadersToggled = {
+                            showResponseHeaders = it
+                            viewModel.showResponseHeaders = it
+                            com.freeobd.app.data.mock.DemoModeState.showResponseHeaders = it
+                        },
                         onDebugLoggingToggled = { enabled ->
                             if (enabled) {
                                 viewModel.onEvent(BluetoothEvent.EnableDebugLogging)
@@ -331,6 +346,7 @@ private fun DeviceListContent(
     selectedProtocol: String,
     selectedTransport: String,
     ecuAddress: String,
+    showResponseHeaders: Boolean,
     debugLoggingEnabled: Boolean,
     showProtocolPicker: Boolean,
     showAdvancedOptions: Boolean,
@@ -342,9 +358,10 @@ private fun DeviceListContent(
     onToggleProtocolPicker: (Boolean) -> Unit,
     onToggleAdvanced: (Boolean) -> Unit,
     onEcuAddressChanged: (String) -> Unit,
+    onShowResponseHeadersToggled: (Boolean) -> Unit,
     onDebugLoggingToggled: (Boolean) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // Scan controls
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -434,14 +451,16 @@ private fun DeviceListContent(
         } // Row (transport / protocol / advanced)
 
         if (showProtocolPicker) {
-            ProtocolPicker(onProtocolSelected = onProtocolSelected)
+            ProtocolPicker(selectedProtocol = selectedProtocol, onProtocolSelected = onProtocolSelected)
         }
 
         if (showAdvancedOptions) {
             AdvancedOptions(
                 ecuAddress = ecuAddress,
+                showResponseHeaders = showResponseHeaders,
                 debugLoggingEnabled = debugLoggingEnabled,
                 onEcuAddressChanged = onEcuAddressChanged,
+                onShowResponseHeadersToggled = onShowResponseHeadersToggled,
                 onDebugLoggingToggled = onDebugLoggingToggled
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -465,10 +484,8 @@ private fun DeviceListContent(
         } else {
             // distinctBy prevents crash if duplicates slip through despite ViewModel dedup
             val uniqueDevices = devices.distinctBy { it.address }
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(uniqueDevices, key = { it.address }) { device ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                uniqueDevices.forEach { device ->
                     DeviceCard(device = device, onConnect = { onConnect(device) })
                 }
             }
@@ -559,7 +576,7 @@ private fun DeviceCard(
 }
 
 @Composable
-private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
+private fun ProtocolPicker(selectedProtocol: String, onProtocolSelected: (String) -> Unit) {
     val protocols = listOf(
         "ATSP0 (Auto)" to "Automatic detection",
         "ATSP1 (PWM)" to "SAE J1850 PWM (41.6 kbaud)",
@@ -582,9 +599,14 @@ private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             protocols.forEach { (display, description) ->
+                val isSelected = display == selectedProtocol
                 TextButton(
                     onClick = { onProtocolSelected(display) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isSelected) Modifier.background(
+                            Primary.copy(alpha = 0.12f), MaterialTheme.shapes.small
+                        ) else Modifier)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -612,8 +634,10 @@ private fun ProtocolPicker(onProtocolSelected: (String) -> Unit) {
 @Composable
 private fun AdvancedOptions(
     ecuAddress: String,
+    showResponseHeaders: Boolean,
     debugLoggingEnabled: Boolean,
     onEcuAddressChanged: (String) -> Unit,
+    onShowResponseHeadersToggled: (Boolean) -> Unit,
     onDebugLoggingToggled: (Boolean) -> Unit
 ) {
     Card(
@@ -646,6 +670,33 @@ private fun AdvancedOptions(
                     cursorColor = Primary
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Show Response Headers Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Show Response Headers",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OnSurface
+                    )
+                    Text(
+                        "Enable ATH1 to include CAN headers in responses",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = showResponseHeaders,
+                    onCheckedChange = onShowResponseHeadersToggled,
+                    colors = SwitchDefaults.colors(checkedTrackColor = Primary)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

@@ -22,12 +22,12 @@ interface OBDRepository {
      *
      * @param protocol The protocol selection command (e.g. "ATSP0" for auto-detect).
      * @param ecuAddress Optional ECU address (e.g. "7DF" for CAN, "33" for KWP).
-     * @param cryptoKey Optional crypto key for Chinese clone adapters (AT+SETCRYPT).
+     * @param showResponseHeaders Whether to enable ATH1 to show CAN headers in responses.
      */
     suspend fun initELM327(
         protocol: String = "ATSP0",
         ecuAddress: String? = null,
-        cryptoKey: String? = null
+        showResponseHeaders: Boolean = false
     ): Result<Unit>
 
     /**
@@ -112,12 +112,6 @@ interface OBDRepository {
     suspend fun clearDTCs(): Result<Unit>
 
     // --- Mode 02: Freeze Frame Data ---
-
-    /**
-     * Read freeze frame data for a specific PID.
-     * Freeze frame captures sensor data at the moment a fault occurred.
-     */
-    suspend fun readFreezeFrame(pidId: Int): Result<OBDData>
 
     /**
      * Discover which PIDs are available in the freeze frame via 02XX00 bitmap.

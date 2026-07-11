@@ -23,7 +23,7 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | **🎮 Demo 模式** | 内置模拟数据引擎，无需 OBD 适配器即可完整体验所有功能 |
 | **蓝牙设备扫描** | 同时扫描经典蓝牙（SPP）和低功耗蓝牙（BLE）OBD 适配器 |
 | **协议自动/手动选择** | 支持 ELM327 全部 13 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW、J1939 等 |
-| **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init，K 线自动跳过 ATH1 |
+| **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init |
 | **加密握手 (AT+SETCRYPT)** | 自动识别并从 AT+VERSION 提取挑战值并计算密钥 |
 | **电压检测** | ATRV 读取电压，低电压时弹窗警告 |
 | **适配器固件信息** | ATI 版本号显示在 Connected 卡片上 |
@@ -73,7 +73,7 @@ app/src/main/java/com/freeobd/app/
 │   │   ├── SppTransport.kt     # 经典蓝牙 RFCOMM 实现
 │   │   ├── BleTransport.kt     # BLE GATT 实现（骨架）
 │   │   ├── ObdCommandQueue.kt  # 原始 ELM327 命令队列 + Mutex 串行化
-│   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→AT+VERSION→(SETCRYPT)→ATSP→ATH1→ATSH
+│   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→AT+VERSION→(SETCRYPT)→ATSP→ATH0/ATH1→ATSH
 │   │   ├── YMOBDCrypto.kt          # 加密密钥生成算法（crypt: 挑战值 → SETCRYPT 密钥）
 │   │   ├── PIDBitmapParser.kt      # 位图解析 parsePidBitmap()（Mode 01/02/09 三个 Explorer 共用）
 │   │   ├── DTCParser.kt           # DTC 故障码解析（SAE J2012）
@@ -118,7 +118,7 @@ app/src/main/java/com/freeobd/app/
 | 方法 | 用途 | 7F 检测 | 日志行为 | 调用者 |
 | :--- | :--- | :--- | :--- | :--- |
 | `sendRaw` | AT 命令（`ATZ`、`ATRV`、`ATSP` 等）<br>ELM327 初始化序列 | ❌ 不检测 | `DebugLogger.enabled` 时记录 | `ELM327Initializer`、<br>`getProtocolInfo`、<br>`readVoltage`、`readAdapterInfo` |
-| `sendObdCommand` | OBD 模式命令（`010C`、`03`、`0902` 等）<br>所有 01-0A 模式请求 | ✅ 检测 `7F xx yy`<br>命中返回 failure | 同上 | `discoverLiveDataPIDs`、`discoverFreezeFramePIDs`、<br>`discoverVehicleInfoTypes`、`readPID`、<br>`readDTCsFromMode`、`clearDTCs`、<br>`readFreezeFrame`、`readLiveDataPID` 等 |
+| `sendObdCommand` | OBD 模式命令（`010C`、`03`、`0902` 等）<br>所有 01-0A 模式请求 | ✅ 检测 `7F xx yy`<br>命中返回 failure | 同上 | `discoverLiveDataPIDs`、`discoverFreezeFramePIDs`、<br>`discoverVehicleInfoTypes`、`readPID`、<br>`readDTCsFromMode`、`clearDTCs`、<br>`readFreezeFramePID`、`readLiveDataPID` 等 |
 | `sendRawCommand`<br>（Repository 层） | Debug Console 手动 TX 输入<br>自动区分 AT / OBD 路由 | ✅ OBD 命令走<br>`sendObdCommand` | **始终记录**<br>不受 `DebugLogger.enabled` 影响 | `DebugConsoleScreen`<br>手动输入框 |
 
 > **原则**：发送 01-0A 模式的 OBD 请求必须用 `sendObdCommand`，否则 7F 负响应会被当作"无数据"静默忽略。
@@ -289,7 +289,7 @@ cd Free_OBD
 - 确保 OBD 适配器已插入车辆 OBD-II 接口并通电
 - 在设备列表中选择你的适配器（通常名为 OBDII、ELM327、Vgate 等）
 - **协议选择**：默认 ATSP0（自动检测）。摩托车 K 线建议手动选 ATSP3（ISO 9141-2）、ATSP4（KWP 5Bd）或 ATSP5（KWP Fast）
-- 展开 **Advanced Options** 可设置 ECU 地址、启用调试日志
+- 展开 **Advanced Options** 可设置 ECU 地址、开启响应头显示以及启用调试日志
 - 连接成功后，**Connected** 卡片显示电压、适配器固件版本、协商协议
 
 ### 2. 仪表盘（Dashboard）
@@ -347,14 +347,14 @@ cd Free_OBD
 2. ATE0             关闭命令回显
 3. ATL0             关闭换行符
 4. AT+VERSION       扩展版本信息；自动提取 crypt: 挑战值
-5. AT+SETCRYPT      根据 crypt: 挑战值自动计算密钥并发送
-6. ATSPx            协议选择（ATSP0 = 自动检测）
-7. ATH1             CAN 头（仅 CAN 协议发送，K 线 ATSP3/4/5 跳过）
-8. ATSH             ECU 头地址（可选，配置了才发）
+4.5. AT+SETCRYPT    根据 crypt: 挑战值自动计算密钥并发送
+5. ATSPx            协议选择（ATSP0 = 自动检测）
+6. ATH0/ATH1        始终发送：ATH0 = 无 header（默认），ATH1 = 用户开启 "Show Response Headers"
+7. ATSH             ECU 头地址（可选，配置了才发）
 ```
 
 - **ATRV / ATI**：不在初始化序列中发送。连接成功后由 ViewModel 单独查询用于 UI 显示（电压 + 固件版本），避免重复发送。
-- **K 线协议（ATSP3/4/5）**：第 7 步 ATH1 跳过。ELM327 在首次 OBD 命令时自动执行 5-baud 慢速或快速 init
+- **K 线协议（ATSP3/4/5）**：ELM327 在首次 OBD 命令时自动执行 5‑baud 慢速或快速 init
 - **非关键步骤**：AT+SETCRYPT 失败不会阻断初始化流程（适配器可能不支持该命令）
 - **加密**：`crypt:` 挑战值每次连接都不同，密钥通过逆向算法实时计算（详见 [AT+SETCRYPT.md](AT+SETCRYPT.md)）
 

@@ -28,7 +28,7 @@ class ConnectBluetoothUseCase(
      * @param protocol ELM327 protocol command (e.g. "ATSP0"). Use "ATSP0" for auto-detect.
      * @param ecuAddress Optional ECU address (e.g. "7DF" for CAN, "33" for KWP).
      * @param transportType Transport to use — SPP (classic) or BLE.
-     * @param cryptoKey Optional crypto key for Chinese clone adapters (AT+SETCRYPT).
+     * @param showResponseHeaders Whether to enable ATH1 to show CAN headers in responses.
      * @return The negotiated protocol info on success, or failure.
      */
     suspend operator fun invoke(
@@ -36,7 +36,7 @@ class ConnectBluetoothUseCase(
         protocol: String = "ATSP0",
         ecuAddress: String? = null,
         transportType: DeviceType = DeviceType.SPP,
-        cryptoKey: String? = null
+        showResponseHeaders: Boolean = false
     ): Result<ProtocolInfo> {
         // Step 1: Establish Bluetooth connection
         bluetoothRepository.connect(device, protocol, ecuAddress, transportType).getOrElse { error ->
@@ -46,7 +46,7 @@ class ConnectBluetoothUseCase(
         }
 
         // Step 2: Initialize ELM327 with the selected protocol and ECU address
-        obdRepository.initELM327(protocol, ecuAddress, cryptoKey).getOrElse { error ->
+        obdRepository.initELM327(protocol, ecuAddress, showResponseHeaders).getOrElse { error ->
             bluetoothRepository.disconnect()
             return Result.failure(
                 ConnectionException("ELM327 initialization failed: ${error.message}", error)

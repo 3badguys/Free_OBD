@@ -9,28 +9,20 @@ import kotlinx.coroutines.delay
  *  2. ATE0           — Disable command echo
  *  3. ATL0           — Disable line feeds
  *  4. AT+VERSION     — Extended version info; auto-detects Yuming crypto handshake
- *  5. AT+SETCRYPT    — Auto-computed for Yuming adapters, or manual override (non-critical)
- *  6. ATSPx          — Protocol selection
- *  7. ATH1           — Enable CAN headers (CAN only, skipped for K-line)
- *  8. ATSH           — ECU header address (optional)
- *
- * Note: ATRV and ATI are queried after connection by BluetoothViewModel
- * for UI display. Including them here would double-send both commands.
+ *  4.5. AT+SETCRYPT  — Auto-computed for Yuming adapters (non-critical)
+ *  5. ATSPx          — Protocol selection
+ *  6. ATH0/ATH1      — Always explicitly set: ATH0 (default) or ATH1 when showResponseHeaders
+ *  7. ATSH           — ECU header address (optional)
  */
 class ELM327Initializer(
     private val commandQueue: ObdCommandQueue
 ) {
-    /**
-     * @param cryptoKey Optional manual crypto key override. When null (the default),
-     *                  the initializer will auto-detect Yuming Electronics adapters
-     *                  from the AT+VERSION response and compute the key automatically.
-     */
     suspend fun initialize(
         protocol: String = "ATSP0",
         ecuAddress: String? = null,
-        cryptoKey: String? = null
+        showResponseHeaders: Boolean = false
     ): Result<Unit> {
-        val steps = buildInitSteps(protocol, ecuAddress)
+        val steps = buildInitSteps(protocol, ecuAddress, showResponseHeaders)
 
         steps.forEachIndexed { index, step ->
             val result = commandQueue.sendRaw(step.command)
@@ -53,7 +45,7 @@ class ELM327Initializer(
             // The crypt: challenge is embedded in the version response and
             // changes on every connection, so the key must be computed at runtime.
             if (step.command == "AT+VERSION") {
-                val key = cryptoKey ?: result.getOrNull()?.let { response ->
+                val key = result.getOrNull()?.let { response ->
                     if (YMOBDCrypto.isYumingAdapter(response)) {
                         YMOBDCrypto.extractCryptChallenge(response)?.let { challenge ->
                             YMOBDCrypto.generateKey(challenge)
@@ -73,7 +65,8 @@ class ELM327Initializer(
 
     private fun buildInitSteps(
         protocol: String,
-        ecuAddress: String?
+        ecuAddress: String?,
+        showResponseHeaders: Boolean
     ): List<InitStep> {
         val steps = mutableListOf<InitStep>()
         val proto = if (protocol in VALID_PROTOCOLS) protocol else "ATSP0"
@@ -88,16 +81,9 @@ class ELM327Initializer(
         steps.add(InitStep("ATL0 (disable line feed)", "ATL0", 200L))
 
         // Step 4: Read extended version info.
-        // ATRV and ATI are NOT included here — they are queried after
-        // connection by BluetoothViewModel for UI display. Including them
-        // here would double-send them, wasting ~400ms in the connection flow.
-        // If the adapter identifies as Shenzhen Yuming Electronics, the
-        // crypt: challenge is extracted and the SETCRYPT key is computed
-        // automatically (see YMOBDCrypto). A manual cryptoKey override
-        // passed to initialize() takes precedence.
         steps.add(InitStep("AT+VERSION", "AT+VERSION", 200L, critical = false))
 
-        // Step 7: Select protocol
+        // Step 5: Select protocol
         steps.add(
             InitStep(
                 "$proto (protocol select)",
@@ -106,12 +92,15 @@ class ELM327Initializer(
             )
         )
 
-        // Step 8: Enable CAN headers (CAN-only; skipped for K-line)
-        if (proto !in NON_CAN_PROTOCOLS) {
-            steps.add(InitStep("ATH1 (enable CAN headers)", "ATH1", 200L))
-        }
+        // Step 6: Response headers — always explicitly set, regardless of protocol.
+        // ATH0 = clean data (default), ATH1 = show CAN headers in responses.
+        steps.add(InitStep(
+            if (showResponseHeaders) "ATH1 (show headers)" else "ATH0 (hide headers)",
+            if (showResponseHeaders) "ATH1" else "ATH0",
+            200L
+        ))
 
-        // Step 9 (optional): Set ECU header address
+        // Step 7 (optional): Set ECU header address
         if (!ecuAddress.isNullOrBlank()) {
             steps.add(InitStep("ATSH $ecuAddress", "ATSH$ecuAddress", 200L))
         }
@@ -133,8 +122,6 @@ class ELM327Initializer(
             "ATSPA", "ATSPB", "ATSPC"
         )
 
-        /** Non-CAN protocols — ATH1 is skipped for these. */
-        private val NON_CAN_PROTOCOLS = setOf("ATSP1", "ATSP2", "ATSP3", "ATSP4", "ATSP5")
     }
 }
 

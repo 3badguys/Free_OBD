@@ -28,6 +28,7 @@ class OBDRepositoryImpl(
     private var commandQueue: ObdCommandQueue? = null
     private val multiFrameHandler = MultiFrameHandler()
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var initProtocol: String = "ATSP0"
     /** Lazy access to the command queue, creating it if needed. */
     private fun requireQueue(): ObdCommandQueue {
         val existing = commandQueue
@@ -41,13 +42,14 @@ class OBDRepositoryImpl(
     override suspend fun initELM327(
         protocol: String,
         ecuAddress: String?,
-        cryptoKey: String?
+        showResponseHeaders: Boolean
     ): Result<Unit> {
         return runCatching {
+            initProtocol = protocol
             commandQueue = null
             val queue = requireQueue()
             queue.initialize()
-            ELM327Initializer(queue).initialize(protocol, ecuAddress, cryptoKey).getOrThrow()
+            ELM327Initializer(queue).initialize(protocol, ecuAddress, showResponseHeaders = showResponseHeaders).getOrThrow()
             queue.markFirstCommand()
         }
     }
@@ -104,19 +106,22 @@ class OBDRepositoryImpl(
         return runCatching {
             val queue = requireQueue()
 
-            // Always send 0100 first to force the ELM327 to lock onto the
-            // vehicle's actual protocol before querying ATDP/ATDPN.
-            // markFirstCommand grants the 10s timeout needed for auto-detect
-            // and K-line 5-baud init. sendObdCommand waits for the '>' prompt,
-            // so no extra delay is needed.
-            queue.markFirstCommand()
-            queue.sendObdCommand("0100")
+            // For auto-detect (ATSP0), send 0100 to force the ELM327 to lock
+            // onto the vehicle's actual protocol before querying ATDP/ATDPN.
+            // For explicit protocols the adapter is already locked — skip the
+            // probe to save time.
+            if (initProtocol == "ATSP0") {
+                queue.markFirstCommand()
+                queue.sendObdCommand("0100")
+            }
 
             val number = parseProtocolNumber(queue.sendRaw("ATDPN").getOrThrow())
             currentProtocolNumber = number
             val description = parseProtocolDescription(queue.sendRaw("ATDP").getOrThrow())
 
-            queue.markFirstCommand()
+            if (initProtocol == "ATSP0") {
+                queue.markFirstCommand()
+            }
             ProtocolInfo(description = description, number = number)
         }
     }
@@ -152,8 +157,9 @@ class OBDRepositoryImpl(
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         return runCatching {
             val pidHex = String.format("%02X", pidId)
-            val rawBytes = requireQueue().sendObdCommand("01$pidHex").getOrThrow()
-            parsePIDResponse(pidId, rawBytes)
+            val command = "01$pidHex"
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            parsePIDResponse(pidId, rawBytes, command = command)
         }
     }
 
@@ -194,7 +200,7 @@ class OBDRepositoryImpl(
             val command = String.format("01%02X", segment)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
             val rawHex = rawBytes.toRawHexString()
-            val rawData = extractDataBytes(rawBytes)
+            val rawData = extractDataBytes(rawBytes, command = command)
             // Bitmap is always 4 bytes (32 bits for 32 PIDs per segment).
             // Extra trailing bytes are padding/checksum from the ECU.
             val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
@@ -207,32 +213,24 @@ class OBDRepositoryImpl(
 
     override suspend fun readLiveDataPID(pidId: Int): Result<String> {
         return runCatching {
-            val rawBytes = requireQueue().sendObdCommand(String.format("01%02X", pidId)).getOrThrow()
-            val parsed = parsePIDResponse(pidId, rawBytes)
+            val command = String.format("01%02X", pidId)
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            val parsed = parsePIDResponse(pidId, rawBytes, command = command)
             if (parsed is OBDData.Unavailable) return@runCatching "No data"
             PidFormatter.format(parsed, database.dtcDefinitionDao())
         }
     }
 
     // ── Mode 02: Freeze Frame ──────────────────────────────
-    override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
-        return runCatching {
-            val pidHex = String.format("%02X", pidId)
-            val rawBytes = requireQueue().sendObdCommand("02$pidHex").getOrThrow()
-            parsePIDResponse(pidId, rawBytes, mode = 0x02,
-                extraSkip = if (isNonCanProtocol()) 1 else 0)
-        }
-    }
 
     override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
         return runCatching {
             val command = String.format("02%02X%02X", segment, frameNumber)
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
-            // Non-CAN Mode 02 has a frame number echo byte after the PID.
-            // CAN Mode 02 handles the frame number at the protocol layer.
+            // Mode 02 response echoes the frame number after the PID byte.
+            // extraSkip=1 strips that extra byte for both CAN and non-CAN.
             val rawHex = rawBytes.toRawHexString()
-            val rawData = extractDataBytes(rawBytes,
-                extraSkip = if (isNonCanProtocol()) 1 else 0)
+            val rawData = extractDataBytes(rawBytes, extraSkip = 1, command = command)
             // Bitmap is always 4 bytes. Trim trailing padding.
             val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
             FreezeFrameDiscovery(
@@ -246,9 +244,10 @@ class OBDRepositoryImpl(
         return runCatching {
             val pidHex = String.format("%02X", pidId)
             val frameHex = String.format("%02X", frameNumber)
-            val rawBytes = requireQueue().sendObdCommand("02$pidHex$frameHex").getOrThrow()
-            val parsed = parsePIDResponse(pidId, rawBytes, mode = 0x02,
-                extraSkip = if (isNonCanProtocol()) 1 else 0)
+            val command = "02$pidHex$frameHex"
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
+            val parsed = parsePIDResponse(pidId, rawBytes, mode = 0x02, extraSkip = 1,
+                command = command)
             if (parsed is OBDData.Unavailable) return@runCatching "No data"
             PidFormatter.format(parsed, database.dtcDefinitionDao())
         }
@@ -262,12 +261,13 @@ class OBDRepositoryImpl(
 
     override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> {
         return runCatching {
-            val rawBytes = requireQueue().sendObdCommand("0900").getOrThrow()
+            val command = "0900"
+            val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
             val rawHex = rawBytes.toRawHexString()
             // Non-CAN protocols (1-5) insert a message count byte after the
             // InfoType in Mode 09 responses. extraSkip=1 strips it.
             val extraSkip = if (isNonCanProtocol()) 1 else 0
-            val rawData = extractDataBytes(rawBytes, extraSkip)
+            val rawData = extractDataBytes(rawBytes, extraSkip, command = command)
             // Bitmap is always 4 bytes. Trim trailing padding.
             val data = if (rawData.size > 4) rawData.copyOf(4) else rawData
             val supported = parsePidBitmap(data, offset = 0)
@@ -288,17 +288,17 @@ class OBDRepositoryImpl(
                 // Multi-frame → each payload is a complete record.
                 // Single-frame → SAE J1979 [count][padded records] format.
                 0x04, 0x06, 0x0A -> {
-                    extractPerFramePayloads(rawBytes)
+                    extractPerFramePayloads(rawBytes, command)
                         .joinToString("\n") { r -> formatSingleRecord(infoType, r) }
                         .ifBlank { "—" }
                 }
                 0x01, 0x03, 0x05, 0x09 -> {
-                    val data = extractDataBytes(rawBytes)
+                    val data = extractDataBytes(rawBytes, command = command)
                     formatInfoTypeResult(infoType, data)
                 }
                 else -> {
                     val extraSkip = if (isNonCanProtocol()) 1 else 0
-                    val data = extractDataBytes(rawBytes, extraSkip)
+                    val data = extractDataBytes(rawBytes, extraSkip, command)
                     formatInfoTypeResult(infoType, data)
                 }
             }
@@ -354,29 +354,113 @@ class OBDRepositoryImpl(
 
     /**
      * Extract per-frame data payloads from a multi-frame Mode 09 response.
-     * Each hex line is decoded; mode + InfoType + record index are stripped
-     * (extraSkip=1 on top of the standard 2-byte header).
+     * Each line is a separate CAN frame; mode + InfoType + record index (3 bytes)
+     * are stripped from each.
      */
-    private fun extractPerFramePayloads(rawBytes: ByteArray): List<ByteArray> {
-        val rawString = String(rawBytes, Charsets.US_ASCII)
-        val lines = rawString.split("\r", "\n").filter { it.isNotBlank() }
-        return lines.mapNotNull { line ->
-            val hexOnly = line.replace(">", "").replace(" ", "").trim()
-            if (hexOnly.length < 6) return@mapNotNull null
-            val decoded = try {
-                ByteUtils.fromHexString(hexOnly)
-            } catch (_: Exception) {
-                return@mapNotNull null
-            }
-            extractFromDecoded(decoded, extraSkip = 1)
-        }
-    }
+    private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null): List<ByteArray> =
+        extractPerFrameRaw(rawBytes, headerBytes = 3, command = command)
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
     override suspend fun readPermanentDTCs(): Result<List<DTC>> =
         readDTCsFromMode("0A", DTCStatus.PERMANENT)
 
-    // ── Helpers ────────────────────────────────────────────
+    /**
+     * Compute the expected ASCII hex response header from an OBD command,
+     * or a broad fallback pattern when the command is unknown.
+     *
+     * With command: "010C" → response mode 0x41 → bytes "410C"
+     *                "03"   → response mode 0x43 → bytes "43"
+     *                "0900" → response mode 0x49 → bytes "4900"
+     * Without command: returns [0x34] ('4') to match any "4x" hex pair.
+     */
+    private fun expectedResponseHeader(command: String?): ByteArray {
+        if (command == null) return byteArrayOf(B4)  // broad "4x" fallback
+        val mode = command.substring(0, 2).toInt(16)
+        val responseMode = mode + 0x40
+        val headerHex = String.format("%02X", responseMode) + command.substring(2)
+        return headerHex.toByteArray(Charsets.US_ASCII)
+    }
+
+    /**
+     * Core: scan raw bytes line by line for the OBD response header, truncate,
+     * then clean and hex-decode.
+     *
+     * When [command] is provided (e.g. "010C"), the exact expected response
+     * header is computed (e.g. "410C") and matched space-insensitively.
+     * When null, falls back to broad matching of any "4x" hex pair (0x41–0x4F).
+     *
+     * @param headerBytes Number of leading bytes to discard from each decoded
+     *   frame after the response header (mode byte + sub-byte + optional extras).
+     * @param command The OBD command that was sent, or null for broad matching.
+     * @return Per-frame data payloads; empty list if no valid frames found.
+     */
+    private fun extractPerFrameRaw(
+        rawBytes: ByteArray,
+        headerBytes: Int,
+        command: String? = null
+    ): List<ByteArray> {
+        val expectedHeader = expectedResponseHeader(command)
+        val result = mutableListOf<ByteArray>()
+
+        var pos = 0
+        while (pos < rawBytes.size) {
+            // Skip leading CR/LF
+            while (pos < rawBytes.size && (rawBytes[pos] == CR || rawBytes[pos] == LF)) pos++
+            if (pos >= rawBytes.size) break
+
+            // Find end of this line
+            val lineEnd = (pos until rawBytes.size).firstOrNull {
+                rawBytes[it] == CR || rawBytes[it] == LF
+            } ?: rawBytes.size
+            if (lineEnd <= pos) { pos = lineEnd; continue }
+
+            // Find response header
+            val markerIdx = indexOfHeader(rawBytes, pos, lineEnd, expectedHeader)
+
+            if (markerIdx >= 0) {
+                // Only now convert to String: from the marker onward
+                val hexOnly = String(rawBytes, markerIdx, lineEnd - markerIdx, Charsets.US_ASCII)
+                    .replace(">", "")
+                    .replace(" ", "")
+                if (hexOnly.length >= headerBytes * 2) {
+                    val decoded = try {
+                        ByteUtils.fromHexString(hexOnly)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (decoded != null && decoded.size > headerBytes) {
+                        result.add(decoded.copyOfRange(headerBytes, decoded.size))
+                    }
+                }
+            }
+            pos = lineEnd
+        }
+
+        return result
+    }
+
+    /**
+     * Extract the actual data bytes from a raw ELM327 response.
+     *
+     * Multi-frame responses (e.g. Mode 09 VIN) span multiple CAN frames — each
+     * frame's data payload is concatenated into a single ByteArray.
+     *
+     * @param extraSkip Additional bytes to skip per frame after the standard
+     *   mode header (mode + PID/InfoType). Used for protocol-specific bytes
+     *   (e.g. Mode 02 frame number echo, non-CAN Mode 09 message count).
+     * @param command The OBD command that was sent, for exact response-header
+     *   matching, or null for broad matching.
+     */
+    private fun extractDataBytes(
+        rawBytes: ByteArray,
+        extraSkip: Int = 0,
+        command: String? = null
+    ): ByteArray {
+        val frames = extractPerFrameRaw(rawBytes, headerBytes = 2 + extraSkip, command = command)
+        val allData = mutableListOf<Byte>()
+        for (frame in frames) allData.addAll(frame.toList())
+        return allData.toByteArray()
+    }
 
     /**
      * Parse a Mode 01/02 PID response.
@@ -391,7 +475,13 @@ class OBDRepositoryImpl(
      * @param rawBytes Raw response bytes from the ELM327.
      * @param mode The OBD mode (0x01 or 0x02). Used for metadata lookup.
      */
-    private fun parsePIDResponse(pidId: Int, rawBytes: ByteArray, mode: Int = 0x01, extraSkip: Int = 0): OBDData {
+    private fun parsePIDResponse(
+        pidId: Int,
+        rawBytes: ByteArray,
+        mode: Int = 0x01,
+        extraSkip: Int = 0,
+        command: String? = null
+    ): OBDData {
         var metadata = runBlocking { database.pidMetadataDao().getById(pidId, mode) }
         // Mode 02 freeze frame uses the same PID definitions as Mode 01.
         // Fall back so that bytesCount trim still works for PIDs not
@@ -402,7 +492,7 @@ class OBDRepositoryImpl(
 
         // Extract data bytes after the mode response header.
         // Mode 02 callers pass extraSkip=1 to strip the frame number echo byte.
-        val dataBytes = extractDataBytes(rawBytes, extraSkip)
+        val dataBytes = extractDataBytes(rawBytes, extraSkip, command)
 
         if (dataBytes.isEmpty()) return OBDData.Unavailable
 
@@ -415,86 +505,29 @@ class OBDRepositoryImpl(
     }
 
     /**
-     * Extract the actual data bytes from a raw ELM327 response.
-     *
-     * The ELM327 sends responses as ASCII hex text, potentially spread across
-     * multiple lines when status messages are emitted:
-     *   "SEARCHING...\r41 0C 1B 88 \r\r>"   (status + data on separate lines)
-     *
-     * With headers enabled (ATH1), the CAN ID and DLC precede the OBD response:
-     *   "18 DA F1 10 06 41 0C 1B 88 \r\r>"
-     *
-     * This method:
-     * 1. Splits the response into lines (ELM327 uses \r as line separator)
-     * 2. Tries each line as hex, skipping non-hex status messages (e.g. "SEARCHING...")
-     * 3. Finds the OBD mode response marker (0x41–0x4F) to skip any CAN headers
-     * 4. Skips the mode response byte + 1 subsequent byte (PID, sub-function, etc.)
-     * 5. Returns the remaining data payload
+     * Find the exact expected response header in raw bytes, skipping spaces
+     * between hex characters. E.g. pattern "410C" matches "4 1 0 C" or "41 0C".
+     * Returns the byte index of the first match, or -1 if none found.
      */
-    /**
-     * @param extraSkip Additional bytes to skip per line after the standard
-     *   mode header. Used for protocol-specific bytes (e.g. non-CAN Mode 09
-     *   message count byte) or multi-record index bytes.
-     */
-    private fun extractDataBytes(rawBytes: ByteArray, extraSkip: Int = 0): ByteArray {
-        val rawString = String(rawBytes, Charsets.US_ASCII)
-
-        // Process each line separately — ELM327 status messages like "SEARCHING..."
-        // or "BUS INIT: OK" appear on their own lines and are not valid hex.
-        // Only the actual data line contains the hex-encoded OBD response.
-        val lines = rawString.split("\r", "\n").filter { it.isNotBlank() }
-
-        // Collect data from all lines — multi-frame responses (e.g. Mode 09
-        // calibration IDs / VIN) span multiple CAN frames, each with its own
-        // mode+PID header. We concatenate the payload from each frame.
-        val allData = mutableListOf<Byte>()
-        for (line in lines) {
-            val hexOnly = line.replace(">", "").replace(" ", "").trim()
-            if (hexOnly.length < 4) continue
-            val decoded = try {
-                ByteUtils.fromHexString(hexOnly)
-            } catch (_: Exception) {
-                continue
+    private fun indexOfHeader(bytes: ByteArray, start: Int, end: Int, pattern: ByteArray): Int {
+        for (i in start until end) {
+            var pi = 0
+            var bi = i
+            while (pi < pattern.size && bi < end) {
+                if (bytes[bi] == SP) { bi++; continue }
+                if (bytes[bi] == pattern[pi]) { pi++; bi++ }
+                else break
             }
-            extractFromDecoded(decoded, extraSkip)?.let { allData.addAll(it.toList()) }
+            if (pi == pattern.size) return i
         }
-        if (allData.isNotEmpty()) return allData.toByteArray()
-
-        // Fallback: try the entire response as a single hex blob.
-        val hexOnly = rawString
-            .replace(">", "").replace("\r", "").replace("\n", "")
-            .replace(" ", "").trim()
-        if (hexOnly.length >= 4) {
-            val decoded = try {
-                ByteUtils.fromHexString(hexOnly)
-            } catch (_: Exception) {
-                return ByteArray(0)
-            }
-            extractFromDecoded(decoded, extraSkip)?.let { return it }
-        }
-
-        return ByteArray(0)
+        return -1
     }
 
-    /**
-     * Find the OBD mode response marker in decoded bytes and return
-     * the data payload, or null if no valid response marker is found.
-     *
-     * Always skips 2 bytes after the mode marker (mode + 1 sub-byte: PID,
-     * InfoType, or count). Use [extraSkip] for additional per-frame bytes
-     * such as Mode 02 frame number echo or non-CAN Mode 09 message count.
-     */
-    private fun extractFromDecoded(decoded: ByteArray, extraSkip: Int = 0): ByteArray? {
-        for (i in decoded.indices) {
-            val b = decoded[i].toInt() and 0xFF
-            if (b in 0x41..0x4F) {
-                val dataStart = i + 2 + extraSkip
-                if (dataStart < decoded.size) {
-                    return decoded.copyOfRange(dataStart, decoded.size)
-                }
-            }
-        }
-        return null
+    companion object {
+        private const val CR: Byte = 0x0D
+        private const val LF: Byte = 0x0A
+        private const val SP: Byte = 0x20
+        private const val B4: Byte = 0x34  // '4'
     }
 
     /**
@@ -576,7 +609,7 @@ class OBDRepositoryImpl(
         return runCatching {
             val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
             val count = DTCParser.extractDtcCount(rawBytes)
-            val dataBytes = extractDataBytes(rawBytes)
+            val dataBytes = extractDataBytes(rawBytes, command = modeHex)
             DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
         }
     }
@@ -604,7 +637,7 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(modeHex).getOrThrow()
             val hex = rawBytes.toRawHexString()
             val count = DTCParser.extractDtcCount(rawBytes)
-            val dataBytes = extractDataBytes(rawBytes)
+            val dataBytes = extractDataBytes(rawBytes, command = modeHex)
             val codes = DTCParser.parse(dataBytes, count, status).map { enrichDtc(it) }
             codes to hex
         } catch (e: Exception) {

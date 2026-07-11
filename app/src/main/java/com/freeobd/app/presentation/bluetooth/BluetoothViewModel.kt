@@ -1,5 +1,8 @@
 package com.freeobd.app.presentation.bluetooth
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.local.AppDatabase
@@ -45,9 +48,11 @@ class BluetoothViewModel(
     private var scanLaunchJob: Job? = null
     private var toggleInProgress = false
 
-    private var selectedProtocol: String = "ATSP0"
-    private var selectedTransportType: DeviceType = DeviceType.SPP
-    private var ecuAddress: String? = null
+    // Settings persisted across connect/disconnect cycles
+    var protocolDisplay by mutableStateOf("ATSP0 (Auto)")
+    var selectedTransport by mutableStateOf("SPP")
+    var ecuAddress by mutableStateOf("")
+    var showResponseHeaders by mutableStateOf(false)
     // Use map keyed by address to deduplicate — data class equals/hashCode includes
     // all fields (including rssi), so a Set can't guarantee uniqueness by address alone.
     private val discoveredDevices = linkedMapOf<String, BluetoothDeviceInfo>()
@@ -60,15 +65,15 @@ class BluetoothViewModel(
         when (event) {
             BluetoothEvent.StartScan -> startScan()
             BluetoothEvent.StopScan -> stopScan()
-            is BluetoothEvent.Connect -> connect(
-                event.device, event.protocol, event.ecuAddress,
-                event.transportType
-            )
+            is BluetoothEvent.Connect -> {
+                DemoModeState.showResponseHeaders = showResponseHeaders
+                connect(event.device, event.protocol, event.ecuAddress, event.transportType)
+            }
             BluetoothEvent.Disconnect -> disconnect()
             BluetoothEvent.DismissError -> dismissError()
-            is BluetoothEvent.SelectProtocol -> { selectedProtocol = event.protocol }
-            is BluetoothEvent.SelectTransport -> { selectedTransportType = event.transportType }
-            is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address.ifBlank { null } }
+            is BluetoothEvent.SelectProtocol -> { protocolDisplay = event.protocol }
+            is BluetoothEvent.SelectTransport -> { selectedTransport = if (event.transportType == DeviceType.BLE) "BLE" else "SPP" }
+            is BluetoothEvent.SetEcuAddress -> { ecuAddress = event.address }
             is BluetoothEvent.EnableDebugLogging -> { com.freeobd.app.data.remote.DebugLogger.setEnabled(true) }
             is BluetoothEvent.DisableDebugLogging -> { com.freeobd.app.data.remote.DebugLogger.setEnabled(false) }
             is BluetoothEvent.ToggleDemoMode -> toggleDemoMode()
@@ -167,7 +172,7 @@ class BluetoothViewModel(
             if (_isDemoMode.value) {
                 repo.connect(device, protocol, ecuAddress, transportType).fold(
                     onSuccess = {
-                        activeObdRepo.initELM327(protocol, ecuAddress, null).fold(
+                        activeObdRepo.initELM327(protocol, ecuAddress, showResponseHeaders).fold(
                             onSuccess = {
                                 val info = activeObdRepo.getProtocolInfo().getOrNull()
                                 val adapterInfo = activeObdRepo.readAdapterInfo().getOrNull()
@@ -198,7 +203,7 @@ class BluetoothViewModel(
                     }
                 )
             } else {
-                connectBluetoothUseCase(device, protocol, ecuAddress, transportType, null).fold(
+                connectBluetoothUseCase(device, protocol, ecuAddress, transportType, showResponseHeaders).fold(
                     onSuccess = { protocolInfo ->
                         val adapterInfo = activeObdRepo.readAdapterInfo().getOrNull()
                         val voltage = activeObdRepo.readVoltage().getOrNull()

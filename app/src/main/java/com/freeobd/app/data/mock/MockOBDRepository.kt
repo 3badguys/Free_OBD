@@ -31,44 +31,46 @@ class MockOBDRepository(
     private var baroPressure = 101.0
     private var runTime = 0.0
     private val random = Random(42)
-
     // ── Initialization ─────────────────────────────────────
-    override suspend fun initELM327(protocol: String, ecuAddress: String?, cryptoKey: String?): Result<Unit> {
-        mockResponse("ATZ", "ELM327 v2.1", Unit, 50)
-        mockResponse("ATE0", "OK", Unit, 50)
-        mockResponse("ATL0", "OK", Unit, 50)
+    override suspend fun initELM327(
+        protocol: String, ecuAddress: String?, showResponseHeaders: Boolean
+    ): Result<Unit> {
+        mockResponse("ATZ", "ELM327 v2.1", 50) { Unit }
+        mockResponse("ATE0", "OK", 50) { Unit }
+        mockResponse("ATL0", "OK", 50) { Unit }
         // Simulate Yuming Electronics adapter with crypto challenge
         val yumingLines = listOf(
             "Shenzhen Yuming Electronics Co., Ltd.", "version:V1.0.0",
             "device type:B02-Z", "device name:OBDII", "device mac:27:5A:C0:29:AD:5D",
             "interface:v2.1", "cust id:NONE", "crypt:844C10BB"
         )
-        mockResponse("AT+VERSION", yumingLines.joinToString("\n"), Unit, 50)
+        mockResponse("AT+VERSION", yumingLines.joinToString("\n"), 50) { Unit }
         val responseBytes = yumingLines.joinToString("\n").toByteArray(Charsets.US_ASCII)
         if (com.freeobd.app.data.remote.YMOBDCrypto.isYumingAdapter(responseBytes)) {
             val challenge = com.freeobd.app.data.remote.YMOBDCrypto.extractCryptChallenge(responseBytes)
             if (challenge != null) {
                 val key = com.freeobd.app.data.remote.YMOBDCrypto.generateKey(challenge)
-                mockResponse("AT+SETCRYPT$key", "OK", Unit, 50)
+                mockResponse("AT+SETCRYPT$key", "OK", 50) { Unit }
             }
         }
-        mockResponse(protocol, "OK", Unit, 50)
+        mockResponse("ATSP0", "OK", 50) { Unit }
+        mockResponse(if (showResponseHeaders) "ATH1" else "ATH0", "OK", 50) { Unit }
         return Result.success(Unit)
     }
 
     override suspend fun readVoltage(): Result<Double> =
-        mockResponse("ATRV", "13.8V", 13.8, 50)
+        mockResponse("ATRV", "13.8V", 50) { 13.8 }
 
     override suspend fun readAdapterInfo(): Result<String> =
-        mockResponse("ATI", "ELM327 v2.1 (demo)", "ELM327 v2.1 (demo)", 50)
+        mockResponse("ATI", "ELM327 v2.1 (demo)", 50) { it }
 
     override suspend fun sendRawCommand(command: String): Result<String> =
-        mockResponse(command, "Manual TX not supported in demo mode", "Manual TX not supported in demo mode", 50)
+        mockResponse(command, "Manual TX not supported in demo mode", 50) { it }
 
     override suspend fun getProtocolInfo(): Result<ProtocolInfo> {
-        mockResponse("0100", "SEARCHING...41 00 FE 1F A8 13", Unit, 100)
-        mockResponse("ATDPN", "6", Unit, 50)
-        mockResponse("ATDP", "ISO 15765-4 CAN (11 bit ID, 500 kbaud)", Unit, 50)
+        mockResponse("0100", "SEARCHING...\n41 00 FE 1F A8 13", 100) { Unit }
+        mockResponse("ATDPN", "6", 50) { Unit }
+        mockResponse("ATDP", "ISO 15765-4 CAN (11 bit ID, 500 kbaud)", 50) { Unit }
         return Result.success(ProtocolInfo("ISO 15765-4 CAN (11 bit ID, 500 kbaud)", "6"))
     }
 
@@ -76,7 +78,7 @@ class MockOBDRepository(
     override suspend fun readPID(pidId: Int): Result<OBDData> {
         val pidHex = String.format("%02X", pidId)
         val data = generatePIDValue(pidId)
-        return mockResponse("01$pidHex", "41 $pidHex [${mockDataHex(data)}]", data, 30)
+        return mockResponse("01$pidHex", "41 $pidHex [${mockDataHex(data)}]", 30) { data }
     }
 
     override suspend fun readPIDs(pidIds: List<Int>): Map<Int, OBDData> {
@@ -123,19 +125,22 @@ class MockOBDRepository(
 
     // ── Mode 04: Clear DTCs ────────────────────────────────
     override suspend fun clearDTCs(): Result<Unit> =
-        mockResponse("04", "44", Unit, 150)
+        mockResponse("04", "44", 150) { Unit }
 
     // ── Mode 01: Per-segment discovery ────────────────────
 
     override suspend fun discoverLiveDataPIDs(segment: Int): Result<LiveDataDiscovery> {
         val cmd = String.format("01%02X", segment)
         return when (segment) {
-            0x00 -> mockResponse(cmd, "41 00 FE 1F A8 13",
-                LiveDataDiscovery("41 00 FE 1F A8 13", setOf(0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x13,0x14,0x15,0x1C,0x1F,0x20)))
-            0x20 -> mockResponse(cmd, "41 20 80 00 00 01",
-                LiveDataDiscovery("41 20 80 00 00 01", setOf(0x21, 0x3F)))
-            else -> mockResponse(cmd, String.format("41 %02X 00 00 00 00 00", segment),
-                LiveDataDiscovery(String.format("41 %02X 00 00 00 00 00", segment), emptySet()))
+            0x00 -> mockResponse(cmd, "41 00 FE 1F A8 13") {
+                LiveDataDiscovery(it, setOf(0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x13,0x14,0x15,0x1C,0x1F,0x20))
+            }
+            0x20 -> mockResponse(cmd, "41 20 80 00 00 01") {
+                LiveDataDiscovery(it, setOf(0x21, 0x3F))
+            }
+            else -> mockResponse(cmd, String.format("41 %02X 00 00 00 00 00", segment)) {
+                LiveDataDiscovery(it, emptySet())
+            }
         }
     }
 
@@ -143,26 +148,26 @@ class MockOBDRepository(
         mockPidResponse(0x01, pidId)
 
     // ── Mode 02: Freeze Frame ──────────────────────────────
-    override suspend fun readFreezeFrame(pidId: Int): Result<OBDData> {
-        delay(80)
-        return Result.success(generatePIDValue(pidId))
-    }
 
     override suspend fun discoverFreezeFramePIDs(segment: Int, frameNumber: Int): Result<FreezeFrameDiscovery> {
         val cmd = String.format("02%02X%02X", segment, frameNumber)
         return when {
             segment == 0x00 && frameNumber == 0 ->
-                mockResponse(cmd, "42 00 00 58 18 02", FreezeFrameDiscovery("42 00 00 58 18 02", setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11)))
+                mockResponse(cmd, "42 00 00 58 18 02") {
+                    FreezeFrameDiscovery(it, setOf(0x02, 0x04, 0x05, 0x0C, 0x0D, 0x11))
+                }
             segment == 0x00 && frameNumber == 1 ->
                 // Frame #1: triggered by P0420 — different PIDs from frame 0 (no 0x04)
-                mockResponse(cmd, "42 00 01 58 18 00", FreezeFrameDiscovery("42 00 01 58 18 00", setOf(0x02, 0x05, 0x0C, 0x0D)))
+                mockResponse(cmd, "42 00 01 58 18 00") {
+                    FreezeFrameDiscovery(it, setOf(0x02, 0x05, 0x0C, 0x0D))
+                }
             frameNumber >= 2 -> {
-                DebugLogger.tx(cmd); delay(100); DebugLogger.rx("7F 02 11")
+                DebugLogger.tx(cmd); delay(100); DebugLogger.rx(withHeader(cmd, "7F 02 11"))
                 Result.failure(Exception("No more freeze frames"))
             }
             else -> {
                 val sh = String.format("%02X", segment); val fh = String.format("%02X", frameNumber)
-                mockResponse(cmd, "42 $sh $fh 00 00 00 00", FreezeFrameDiscovery("42 $sh $fh 00 00 00 00", emptySet()))
+                mockResponse(cmd, "42 $sh $fh 00 00 00 00") { FreezeFrameDiscovery(it, emptySet()) }
             }
         }
     }
@@ -183,19 +188,19 @@ class MockOBDRepository(
             is OBDData.Numeric -> {
                 val v = data.value.toInt()
                 val mr = (mode + 0x40).toString(16).uppercase()
-                DebugLogger.rx(String.format("$mr %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF))
+                DebugLogger.rx(withHeader(cmd, String.format("$mr %02X %02X %02X", pidId, (v shr 8) and 0xFF, v and 0xFF)))
                 val formatted = PidFormatter.format(data)
                 Result.success(formatted)
             }
             is OBDData.RawBytes -> {
                 val mr = (mode + 0x40).toString(16).uppercase()
                 val hex = data.bytes.joinToString(" ") { String.format("%02X", it) }
-                DebugLogger.rx(String.format("$mr %02X %s", pidId, hex))
+                DebugLogger.rx(withHeader(cmd, String.format("$mr %02X %s", pidId, hex)))
                 val formatted = PidFormatter.format(data, database.dtcDefinitionDao())
                 Result.success(formatted)
             }
             else -> {
-                DebugLogger.rx("7F ${String.format("%02X", mode)} 11")
+                DebugLogger.rx(withHeader(cmd, "7F ${String.format("%02X", mode)} 11"))
                 Result.failure(Exception("serviceNotSupported"))
             }
         }
@@ -208,27 +213,47 @@ class MockOBDRepository(
     // ── Mode 09: Vehicle Information ───────────────────────
 
     override suspend fun discoverVehicleInfoTypes(): Result<VehicleInfoDiscovery> =
-        mockResponse("0900", "49 00 54 02",
-            VehicleInfoDiscovery("49 00 54 02", setOf(0x02, 0x04, 0x06, 0x0A)))
+        mockResponse("0900", "49 00 54 02") {
+            VehicleInfoDiscovery(it, setOf(0x02, 0x04, 0x06, 0x0A))
+        }
 
     override suspend fun readVehicleInfoType(infoType: Int): Result<String> {
         val cmd = String.format("09%02X", infoType)
         return when (infoType) {
-            0x02 -> mockResponse(cmd, "49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36", "1HGBH41JXMN109186")
-            0x04 -> mockResponse(cmd, "49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00", "3292\n0-10")
-            0x06 -> mockResponse(cmd, "49 06 02 A1 B2 C3 D4 E5 F6 A7 B8", "A1B2C3D4\nE5F6A7B8")
-            0x0A -> mockResponse(cmd, "49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", "ECM")
-            0x01, 0x03, 0x05, 0x07 -> mockResponse(cmd, String.format("49 %02X 01", infoType), "01")
-            0x08, 0x0B -> mockResponse(cmd, String.format("49 %02X 01 A1 B2 C3 D4", infoType), "A1 B2 C3 D4")
-            else -> mockResponse(cmd, String.format("49 %02X 00", infoType), "—")
+            0x02 -> mockResponse(cmd, "49 02 01 31 48 47 42 48 34 31 4A 58 4D 4E 31 30 39 31 38 36") { "1HGBH41JXMN109186" }
+            0x04 -> mockResponse(cmd, "49 04 02 32 33 39 32 00 00 00 00 00 00 00 00 00 00 00 00 30 2D 31 30 00 00 00 00 00 00 00 00 00 00 00 00") { "3292\n0-10" }
+            0x06 -> mockResponse(cmd, "49 06 02 A1 B2 C3 D4 E5 F6 A7 B8") { "A1B2C3D4\nE5F6A7B8" }
+            0x0A -> mockResponse(cmd, "49 0A 01 45 43 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00") { "ECM" }
+            0x01, 0x03, 0x05, 0x07 -> mockResponse(cmd, String.format("49 %02X 01", infoType)) { "01" }
+            0x08, 0x0B -> mockResponse(cmd, String.format("49 %02X 01 A1 B2 C3 D4", infoType)) { "A1 B2 C3 D4" }
+            else -> mockResponse(cmd, String.format("49 %02X 00", infoType)) { "—" }
         }
     }
     // ── Helpers ────────────────────────────────────────────
 
-    /** Log TX → delay → log each RX line → return success. Multi-line strings split on \n. */
-    private suspend fun <T> mockResponse(cmd: String, rx: String, result: T, delayMs: Long = 100): Result<T> {
-        DebugLogger.tx(cmd); delay(delayMs); DebugLogger.rx(rx)
-        return Result.success(result)
+    private fun isATCommand(cmd: String): Boolean =
+        cmd.length >= 2 && cmd[0] in "aA" && cmd[1] in "tT"
+
+    /**
+     * Apply CAN header prefix to a response string when showHeaders is on
+     * and the command is an OBD command. Handles multi-line responses
+     * (e.g. "SEARCHING...\n41 00 ...") by adding headers to each hex line.
+     */
+    private fun withHeader(cmd: String, rx: String): String {
+        if (!DemoModeState.showResponseHeaders || isATCommand(cmd)) return rx
+        val hdr = "18 DA F1 10 06 "
+        return rx.split("\n").joinToString("\n") { line ->
+            if (line.isNotEmpty() && line[0] in '0'..'9') hdr + line else line
+        }
+    }
+
+    /** Log TX → delay → log RX → build result with header-aware rx. */
+    private suspend fun <T> mockResponse(
+        cmd: String, rx: String, delayMs: Long = 100, resultBuilder: (String) -> T
+    ): Result<T> {
+        val displayRx = withHeader(cmd, rx)
+        DebugLogger.tx(cmd); delay(delayMs); DebugLogger.rx(displayRx)
+        return Result.success(resultBuilder(displayRx))
     }
 
     private fun mockDtc(code: String, desc: String, cat: DTCCategory, sys: String, sev: DTCSeverity, status: DTCStatus) =
@@ -248,8 +273,9 @@ class MockOBDRepository(
             "0A" -> "4A 00" to emptyList()
             else -> "7F $modeHex 11" to emptyList()
         }
-        mockResponse(modeHex, rx, Unit, 150)
-        return codes to rx
+        var displayHex = rx
+        mockResponse(modeHex, rx, 150) { displayHex = it; Unit }
+        return codes to displayHex
     }
 
     // ── PID value generation ───────────────────────────────
