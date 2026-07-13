@@ -217,7 +217,7 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
             val parsed = parsePIDResponse(pidId, rawBytes, command = command)
             if (parsed is OBDData.Unavailable) return@runCatching "No data"
-            PidFormatter.format(parsed, database.dtcDefinitionDao())
+            PidFormatter.format(parsed, database.dtcDao())
         }
     }
 
@@ -249,7 +249,7 @@ class OBDRepositoryImpl(
             val parsed = parsePIDResponse(pidId, rawBytes, mode = 0x02, extraSkip = 1,
                 command = command)
             if (parsed is OBDData.Unavailable) return@runCatching "No data"
-            PidFormatter.format(parsed, database.dtcDefinitionDao())
+            PidFormatter.format(parsed, database.dtcDao())
         }
     }
 
@@ -615,15 +615,15 @@ class OBDRepositoryImpl(
     }
 
     private suspend fun enrichDtc(dtc: DTC): DTC {
-        val def = database.dtcDefinitionDao().getByCode(dtc.code) ?: return dtc
+        val def = database.dtcDao().getByCode(dtc.code) ?: return dtc
         return dtc.copy(
             description = def.description,
-            system = def.system,
-            severity = when (def.severity?.uppercase()) {
-                "LOW" -> DTCSeverity.LOW
-                "HIGH" -> DTCSeverity.HIGH
-                "CRITICAL" -> DTCSeverity.CRITICAL
-                else -> DTCSeverity.MEDIUM
+            category = when (def.category) {
+                "P" -> DTCCategory.POWERTRAIN
+                "B" -> DTCCategory.BODY
+                "C" -> DTCCategory.CHASSIS
+                "U" -> DTCCategory.NETWORK
+                else -> DTCCategory.UNKNOWN
             }
         )
     }

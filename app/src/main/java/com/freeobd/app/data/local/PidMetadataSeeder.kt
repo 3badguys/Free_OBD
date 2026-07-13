@@ -31,7 +31,7 @@ object PidMetadataSeeder {
     private const val JSON_FILENAME = "pid_definitions.json"
 
     /** Bump when the JSON is expanded to force re-seed on existing installs. */
-    private const val SEED_VERSION = 2
+    private const val SEED_VERSION = 1
 
     /**
      * Seed the PID metadata table if empty or stale.

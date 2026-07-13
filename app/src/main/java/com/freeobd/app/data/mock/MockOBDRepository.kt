@@ -196,7 +196,7 @@ class MockOBDRepository(
                 val mr = (mode + 0x40).toString(16).uppercase()
                 val hex = data.bytes.joinToString(" ") { String.format("%02X", it) }
                 DebugLogger.rx(withHeader(cmd, String.format("$mr %02X %s", pidId, hex)))
-                val formatted = PidFormatter.format(data, database.dtcDefinitionDao())
+                val formatted = PidFormatter.format(data, database.dtcDao())
                 Result.success(formatted)
             }
             else -> {
@@ -256,8 +256,8 @@ class MockOBDRepository(
         return Result.success(resultBuilder(displayRx))
     }
 
-    private fun mockDtc(code: String, desc: String, cat: DTCCategory, sys: String, sev: DTCSeverity, status: DTCStatus) =
-        DTC(code, desc, cat, sys, sev, status)
+    private fun mockDtc(code: String, desc: String, cat: DTCCategory, status: DTCStatus) =
+        DTC(code, desc, cat, status)
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
     override suspend fun readPermanentDTCs(): Result<List<DTC>> =
@@ -266,10 +266,10 @@ class MockOBDRepository(
     override suspend fun readDtcWithHex(modeHex: String, status: DTCStatus): Pair<List<DTC>, String> {
         val (rx, codes) = when (modeHex) {
             "03" -> "43 02 03 01 04 20" to listOf(
-                mockDtc("P0301", "Cylinder 1 Misfire Detected", DTCCategory.POWERTRAIN, "Ignition", DTCSeverity.HIGH, DTCStatus.STORED),
-                mockDtc("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", DTCCategory.POWERTRAIN, "Emissions", DTCSeverity.MEDIUM, DTCStatus.STORED))
+                mockDtc("P0301", "Cylinder 1 Misfire Detected", DTCCategory.POWERTRAIN, DTCStatus.STORED),
+                mockDtc("P0420", "Catalyst System Efficiency Below Threshold (Bank 1)", DTCCategory.POWERTRAIN, DTCStatus.STORED))
             "07" -> "47 01 01 71" to listOf(
-                mockDtc("P0171", "System Too Lean (Bank 1)", DTCCategory.POWERTRAIN, "Fuel/Air", DTCSeverity.MEDIUM, DTCStatus.PENDING))
+                mockDtc("P0171", "System Too Lean (Bank 1)", DTCCategory.POWERTRAIN, DTCStatus.PENDING))
             "0A" -> "4A 00" to emptyList()
             else -> "7F $modeHex 11" to emptyList()
         }

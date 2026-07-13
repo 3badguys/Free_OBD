@@ -2,7 +2,7 @@ package com.freeobd.app
 
 import android.app.Application
 import com.freeobd.app.data.local.AppDatabase
-import com.freeobd.app.data.local.DtcDefinitionSeeder
+import com.freeobd.app.data.local.DtcSeeder
 import com.freeobd.app.data.local.PidMetadataSeeder
 import com.freeobd.app.di.appModule
 import kotlinx.coroutines.CoroutineScope
@@ -46,8 +46,8 @@ class FreeObdApplication : Application() {
             try {
                 val database = AppDatabase.getInstance(this@FreeObdApplication)
 
-                // Seed DTC definitions (from CSV or minimal fallback set)
-                DtcDefinitionSeeder.seedIfEmpty(this@FreeObdApplication, database)
+                // Seed DTC definitions from bundled dtc_codes.db
+                DtcSeeder.seedIfEmpty(this@FreeObdApplication, database)
 
                 // Seed PID metadata (from JSON or minimal fallback set)
                 PidMetadataSeeder.seedIfEmpty(this@FreeObdApplication, database)

@@ -36,12 +36,6 @@ val GaugeArc = Color(0xFF00D4AA)          // Gauge arc — matches primary teal
 val GaugeArcBackground = Color(0xFF2C3E50) // Gauge arc background track
 val GaugeTick = Color(0xFF78909C)         // Tick marks
 
-// ── DTC severity colors ────────────────────────────────────
-val DtcLow = Color(0xFF64B5F6)            // Low severity — blue
-val DtcMedium = Color(0xFFFFCA28)         // Medium severity — yellow/amber
-val DtcHigh = Color(0xFFFF7043)           // High severity — orange
-val DtcCritical = Color(0xFFFF5252)       // Critical severity — red
-
 // ── Bluetooth status ───────────────────────────────────────
 val BtConnected = Color(0xFF00E676)       // Connected — green
 val BtConnecting = Color(0xFFFFCA28)      // Connecting — amber

@@ -1,6 +1,6 @@
 package com.freeobd.app.data.remote
 
-import com.freeobd.app.data.local.dao.DtcDefinitionDao
+import com.freeobd.app.data.local.dao.DtcDao
 import com.freeobd.app.domain.model.OBDData
 
 /**
@@ -10,12 +10,12 @@ import com.freeobd.app.domain.model.OBDData
  * Accepts [OBDData] — [OBDData.RawBytes] for bit-field / multi-field PIDs,
  * [OBDData.Numeric] for simple sensor readings.
  *
- * Pass a [DtcDefinitionDao] to enrich DTC codes (PID 0x02) with descriptions
+ * Pass a [DtcDao] to enrich DTC codes (PID 0x02) with descriptions
  * from the database; pass null to skip the lookup.
  */
 object PidFormatter {
 
-    suspend fun format(data: OBDData, dao: DtcDefinitionDao? = null): String = when (data) {
+    suspend fun format(data: OBDData, dao: DtcDao? = null): String = when (data) {
         is OBDData.RawBytes -> when (data.pidId) {
             0x01 -> formatMonitorStatus(data.bytes)
             0x02 -> {
@@ -29,7 +29,7 @@ object PidFormatter {
         else -> "—"
     }
 
-    private suspend fun enrichDescription(code: String, dao: DtcDefinitionDao): String {
+    private suspend fun enrichDescription(code: String, dao: DtcDao): String {
         val desc = dao.getByCode(code)?.description
         return if (desc != null) "$code — $desc" else code
     }

@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.freeobd.app.domain.model.DTC
-import com.freeobd.app.domain.model.DTCSeverity
 import com.freeobd.app.presentation.theme.*
 
 /**
@@ -28,12 +27,7 @@ fun DtcDetailDialog(
                 Icon(
                     Icons.Default.Warning,
                     contentDescription = null,
-                    tint = when (dtc.severity) {
-                        DTCSeverity.LOW -> DtcLow
-                        DTCSeverity.MEDIUM -> DtcMedium
-                        DTCSeverity.HIGH -> DtcHigh
-                        DTCSeverity.CRITICAL -> DtcCritical
-                    }
+                    tint = StatusYellow
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
@@ -53,8 +47,6 @@ fun DtcDetailDialog(
 
                 // Metadata rows
                 DetailRow("Category", dtc.category.name)
-                DetailRow("Severity", dtc.severity.name)
-                dtc.system?.let { DetailRow("System", it) }
                 DetailRow("Status", dtc.status.name)
 
                 Spacer(modifier = Modifier.height(8.dp))

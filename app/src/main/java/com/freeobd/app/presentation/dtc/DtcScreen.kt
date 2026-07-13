@@ -14,7 +14,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeobd.app.domain.model.DTC
-import com.freeobd.app.domain.model.DTCSeverity
 import com.freeobd.app.presentation.theme.*
 import org.koin.androidx.compose.koinViewModel
 
@@ -320,18 +319,6 @@ private fun DtcListItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Severity indicator
-            Surface(
-                modifier = Modifier.size(8.dp),
-                shape = MaterialTheme.shapes.small,
-                color = when (dtc.severity) {
-                    DTCSeverity.LOW -> DtcLow
-                    DTCSeverity.MEDIUM -> DtcMedium
-                    DTCSeverity.HIGH -> DtcHigh
-                    DTCSeverity.CRITICAL -> DtcCritical
-                }
-            ) {}
-
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
@@ -347,13 +334,6 @@ private fun DtcListItem(
                     color = OnSurface,
                     maxLines = 2
                 )
-                if (dtc.system != null) {
-                    Text(
-                        text = dtc.system,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OnSurfaceVariant
-                    )
-                }
             }
 
             Icon(

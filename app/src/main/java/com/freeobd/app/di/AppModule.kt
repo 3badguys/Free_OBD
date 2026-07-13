@@ -37,7 +37,7 @@ val appModule = module {
     single { AppDatabase.getInstance(androidContext()) }
 
     // DAOs (derived from the database singleton)
-    single { get<AppDatabase>().dtcDefinitionDao() }
+    single { get<AppDatabase>().dtcDao() }
     single { get<AppDatabase>().pidMetadataDao() }
     single { get<AppDatabase>().vehicleProfileDao() }
 

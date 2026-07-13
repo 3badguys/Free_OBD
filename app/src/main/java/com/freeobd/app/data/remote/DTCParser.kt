@@ -2,7 +2,6 @@ package com.freeobd.app.data.remote
 
 import com.freeobd.app.domain.model.DTC
 import com.freeobd.app.domain.model.DTCCategory
-import com.freeobd.app.domain.model.DTCSeverity
 import com.freeobd.app.domain.model.DTCStatus
 
 /**
@@ -109,34 +108,8 @@ object DTCParser {
         return DTC(
             code = code,
             category = category,
-            severity = inferSeverity(code),
             status = status
         )
-    }
-
-    /**
-     * Infer a rough severity level from the DTC code prefix.
-     *
-     * This is a heuristic — actual severity depends on vehicle context.
-     * - P0xxx = Generic powertrain (medium by default)
-     * - P1xxx = Manufacturer-specific (low by default)
-     * - P2xxx = Generic powertrain
-     * - P3xxx = Manufacturer-specific
-     * - U0xxx = Network communication (high — may indicate wiring issues)
-     */
-    private fun inferSeverity(code: String): DTCSeverity {
-        if (code.length < 3) return DTCSeverity.MEDIUM
-
-        return when {
-            // Network codes are often serious (wiring, module failures)
-            code.startsWith("U0") -> DTCSeverity.HIGH
-            // Generic powertrain codes are well-defined, medium priority
-            code.startsWith("P0") || code.startsWith("P2") -> DTCSeverity.MEDIUM
-            // Manufacturer-specific codes vary widely; flag as low until description lookup
-            code[0] == 'P' -> DTCSeverity.LOW
-            // Chassis and body codes
-            else -> DTCSeverity.MEDIUM
-        }
     }
 
     /**
