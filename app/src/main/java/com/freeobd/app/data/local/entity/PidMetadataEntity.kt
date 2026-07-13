@@ -7,7 +7,7 @@ import androidx.room.Entity
  * Room entity caching SAE J1979 PID metadata definitions.
  *
  * Pre-seeded from bundled JSON data on first database creation.
- * Provides metadata (name, unit, formula) for PID value interpretation.
+ * Provides metadata (description, unit, formula) for PID value interpretation.
  */
 @Entity(
     tableName = "pid_metadata",
@@ -20,11 +20,8 @@ data class PidMetadataEntity(
     @ColumnInfo(name = "mode")
     val mode: Int,              // OBD mode: 0x01 (live data), 0x02 (freeze frame), 0x09 (vehicle info)
 
-    @ColumnInfo(name = "name")
-    val name: String,           // Human-readable name: "Engine RPM"
-
     @ColumnInfo(name = "description")
-    val description: String = "",
+    val description: String,    // Human-readable description: "Engine RPM"
 
     @ColumnInfo(name = "unit")
     val unit: String = "",      // "rpm", "°C", "kPa", "%", "km/h"

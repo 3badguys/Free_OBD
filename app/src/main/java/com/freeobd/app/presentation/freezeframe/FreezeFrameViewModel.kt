@@ -161,7 +161,7 @@ class FreezeFrameViewModel(
 
     private suspend fun loadPidNames() {
         pidNames = database.pidMetadataDao().getByMode(0x01).associate {
-            it.pidId to it.name
+            it.pidId to it.description
         }
     }
 }

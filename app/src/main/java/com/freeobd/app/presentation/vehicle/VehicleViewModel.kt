@@ -113,7 +113,7 @@ class VehicleViewModel(
             entity.pidId to VehicleInfoTypeMeta(
                 infoType = entity.pidId,
                 command = String.format("09%02X", entity.pidId),
-                description = entity.name
+                description = entity.description
             )
         }
     }

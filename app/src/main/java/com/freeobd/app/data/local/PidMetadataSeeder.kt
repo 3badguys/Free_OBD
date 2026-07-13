@@ -13,10 +13,9 @@ import kotlinx.coroutines.withContext
  * JSON format (pid_definitions.json in assets):
  * [
  *   {
- *     "pid_id": 12,
+ *     "pid_id": "0x0C",
  *     "mode": 1,
- *     "name": "Engine RPM",
- *     "description": "Engine speed in revolutions per minute",
+ *     "description": "Engine RPM",
  *     "unit": "rpm",
  *     "min_value": 0.0,
  *     "max_value": 16383.75,
@@ -87,7 +86,6 @@ object PidMetadataSeeder {
     private data class PidMetadataJson(
         val pid_id: String,
         val mode: Int = 1,
-        val name: String,
         val description: String = "",
         val unit: String = "",
         val min_value: Double = 0.0,
@@ -100,7 +98,6 @@ object PidMetadataSeeder {
             return PidMetadataEntity(
                 pidId = id,
                 mode = mode,
-                name = name,
                 description = description,
                 unit = unit,
                 minValue = min_value,

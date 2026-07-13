@@ -44,7 +44,7 @@ class LiveDataViewModel(
     private fun load() {
         viewModelScope.launch {
             if (pidNames.isEmpty()) {
-                pidNames = database.pidMetadataDao().getByMode(0x01).associate { it.pidId to it.name }
+                pidNames = database.pidMetadataDao().getByMode(0x01).associate { it.pidId to it.description }
             }
 
             val segment = _uiState.value.segment

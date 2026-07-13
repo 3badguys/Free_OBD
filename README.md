@@ -33,7 +33,7 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | **Live Data Explorer** | 按段浏览全部 Mode 01 PID 及其实时数值 |
 | **冻结帧数据** | Mode 02 位图发现 + 逐 PID 拉取，支持多帧前后切换 |
 | **故障码读取/清除** | Mode 03/07/0A 三标签页，清码 Mode 04 需确认对话框 |
-| **故障码详情** | 内置 SAE J2012 故障码数据库（400+ 代码） |
+| **故障码详情** | 内置 SAE J2012 故障码数据库（9400+ 代码，从预置 dtc_codes.db 加载） |
 | **车辆信息** | Mode 09 位图发现 + 逐项拉取 VIN、校准 ID、CVN、ECU 名称 |
 | **调试控制台** | 实时查看 TX/RX 命令日志，支持 SAF 保存路径选择 + 手动 TX 输入 |
 | **运行时权限** | Android 12+ / 12 以下自适应权限请求 |
@@ -63,11 +63,11 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 app/src/main/java/com/freeobd/app/
 ├── data/
 │   ├── local/                   # Room 数据库
-│   │   ├── entity/              # DtcDefinitionEntity, PidMetadataEntity, VehicleProfileEntity
-│   │   ├── dao/                 # DtcDefinitionDao, PidMetadataDao, VehicleProfileDao
+│   │   ├── entity/              # DtcEntity, PidMetadataEntity, VehicleProfileEntity
+│   │   ├── dao/                 # DtcDao, PidMetadataDao, VehicleProfileDao
 │   │   ├── AppDatabase.kt      # 数据库单例
-│   │   ├── DtcDefinitionSeeder.kt  # 故障码 CSV 数据填充
-│   │   └── PidMetadataSeeder.kt    # PID 元数据 JSON 数据填充
+│   │   ├── DtcSeeder.kt         # 故障码预置数据库 (dtc_codes.db) 填充
+│   │   └── PidMetadataSeeder.kt    # PID 元数据 JSON (pid_definitions.json, 186 条) 填充
 │   ├── remote/                  # OBD 通信层
 │   │   ├── ObdTransport.kt     # 传输层抽象接口（SPP/BLE）
 │   │   ├── SppTransport.kt     # 经典蓝牙 RFCOMM 实现
@@ -316,7 +316,7 @@ cd Free_OBD
 
 - 点击 **Diagnostic Trouble Codes**
 - 自动加载所有故障码，在 Stored / Pending / Permanent 标签页切换
-- 点击单个故障码查看详细信息（严重程度、系统分类、建议）
+- 点击单个故障码查看详细信息（代码、描述、分类）
 - 点击垃圾桶图标清除存储的故障码（需确认）
 
 ### 6. 车辆信息
