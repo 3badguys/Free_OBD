@@ -25,6 +25,14 @@ fun AppNavHost(
     navController: NavHostController,
     startDestination: String = NavRoutes.Bluetooth.route
 ) {
+    // Guard against rapid double-taps — popping an already-empty stack
+    // navigates to a blank screen.
+    val popBack: () -> Unit = {
+        if (navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -68,42 +76,42 @@ fun AppNavHost(
         // Live data dashboard
         composable(NavRoutes.Dashboard.route) {
             DashboardScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
 
         // Mode 01 Live Data
         composable(NavRoutes.LiveData.route) {
             LiveDataScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
 
         // Freeze Frame data (Mode 02)
         composable(NavRoutes.FreezeFrame.route) {
             FreezeFrameScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
 
         // Diagnostic Trouble Codes
         composable(NavRoutes.DTC.route) {
             DtcScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
 
         // Vehicle Information
         composable(NavRoutes.VehicleInfo.route) {
             VehicleScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
 
         // Debug Console
         composable(NavRoutes.DebugConsole.route) {
             DebugConsoleScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = popBack
             )
         }
     }
