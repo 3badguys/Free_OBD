@@ -16,7 +16,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "Bit encoded.\n[A7] == State of the CEL/MIL (on/off)\n[A6..A0] == Number of confirmed emissions-related DTCs available for display;\n[B7] == Reserved (should be 0)\n[B6..B4] == Bitmap indicating completeness of common tests\n[B3] == Indication of engine type: 0 = Spark ignition (e.g. Otto or Wankel engines), 1 = Compression ignition (e.g. Diesel engines)\n[B2..B0] == Bitmap indicating availability of common tests\n[C7..C0] == Bitmap indicating availability of engine-type specific tests\n[D7..D0] == Bitmap indicating completeness of engine-type specific tests",
     "bytes_count": 4
   },
   {
@@ -26,7 +26,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Decoded as in Service $03",
+    "formula": "Decoded as in Service $03.\n[A7-A6] == Category: 00 = P - Powertrain, 01 = C - Chassis, 10 = B - Body, 11 = U - Network\n[A5..B0] == Number (within category)",
     "bytes_count": 2
   },
   {
@@ -36,7 +36,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "The first byte describes fuel system #1. The second byte describes fuel system #2 (if it exists) and is encoded identically to the first byte. The meaning assigned to the value of each byte is as follows:\n0 The motor is off\n1 Open loop due to insufficient engine temperature\n2 Closed loop, using oxygen sensor feedback to determine fuel mix\n4 Open loop due to engine load OR fuel cut due to deceleration\n8 Open loop due to system failure\n16 Closed loop, using at least one oxygen sensor but there is a fault in the feedback system",
     "bytes_count": 2
   },
   {
@@ -73,9 +73,9 @@
     "pid_id": "0x07",
     "mode": 1,
     "description": "Long term fuel trim (LTFT) — Bank 1",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
     "formula": "100/128 A − 100  (or A / 1.28 − 100)",
     "bytes_count": 1
   },
@@ -83,9 +83,9 @@
     "pid_id": "0x08",
     "mode": 1,
     "description": "Short term fuel trim (STFT) — Bank 2",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
     "formula": "100/128 A − 100  (or A / 1.28 − 100)",
     "bytes_count": 1
   },
@@ -93,9 +93,9 @@
     "pid_id": "0x09",
     "mode": 1,
     "description": "Long term fuel trim (LTFT) — Bank 2",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
     "formula": "100/128 A − 100  (or A / 1.28 − 100)",
     "bytes_count": 1
   },
@@ -186,7 +186,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "A single byte of data which describes the secondary air status:\n1 Upstream\n2 Downstream of catalytic converter\n4 From the outside atmosphere or off\n8 Pump commanded on for diagnostics",
     "bytes_count": 1
   },
   {
@@ -196,7 +196,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "[A0..A3] == Bank 1, Sensors 1-4. [A4..A7] == Bank 2, Sensors 1-4",
+    "formula": "[A0..A3] == Bank 1, Sensors 1-4\n[A4..A7] == Bank 2, Sensors 1-4",
     "bytes_count": 1
   },
   {
@@ -206,77 +206,77 @@
     "unit": "V %",
     "min_value": 0,
     "max_value": 1.275,
-    "formula": "A / 200 — voltage; 100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x15",
     "mode": 1,
     "description": "Oxygen Sensor 2 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x16",
     "mode": 1,
     "description": "Oxygen Sensor 3 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x17",
     "mode": 1,
     "description": "Oxygen Sensor 4 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x18",
     "mode": 1,
     "description": "Oxygen Sensor 5 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x19",
     "mode": 1,
     "description": "Oxygen Sensor 6 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x1A",
     "mode": 1,
     "description": "Oxygen Sensor 7 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
     "pid_id": "0x1B",
     "mode": 1,
     "description": "Oxygen Sensor 8 A: Voltage B: Short term fuel trim",
-    "unit": "",
+    "unit": "V %",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 1.275,
+    "formula": "A / 200 — voltage\n100/128 B − 100 — STFT  (if B==$FF, sensor not used in trim)",
     "bytes_count": 2
   },
   {
@@ -286,7 +286,7 @@
     "unit": "",
     "min_value": 1,
     "max_value": 250,
-    "formula": "Enumerated",
+    "formula": "Enumerated:\n1 OBD-II as defined by the CARB\n2 OBD as defined by the EPA\n3 OBD and OBD-II\n4 OBD-I\n5 Not OBD compliant\n6 EOBD (Europe)\n7 EOBD and OBD-II\n8 EOBD and OBD\n9 EOBD, OBD and OBD II\n10 JOBD (Japan)\n11 JOBD and OBD II\n12 JOBD and EOBD\n13 JOBD, EOBD, and OBD II\n14 OBD, EOBD, and KOBD\n15 OBD, OBD II, EOBD, and KOBD\n16 Reserved\n17 Engine Manufacturer Diagnostics (EMD)\n18 Engine Manufacturer Diagnostics Enhanced (EMD+)\n19 Heavy Duty On-Board Diagnostics (Child/Partial) (HD OBD-C)\n20 Heavy Duty On-Board Diagnostics (HD OBD)\n21 World Wide Harmonized OBD (WWH OBD)\n22 Reserved\n23 Heavy Duty Euro OBD Stage I without NOx control (HD EOBD-I)\n24 Heavy Duty Euro OBD Stage I with NOx control (HD EOBD-I N)\n25 Heavy Duty Euro OBD Stage II without NOx control (HD EOBD-II)\n26 Heavy Duty Euro OBD Stage II with NOx control (HD EOBD-II N)\n27 Heavy Duty ZEV\n28 Brazil OBD Phase 1 (OBDBr-1)\n29 Brazil OBD Phase 2 (OBDBr-2)\n30 Korean OBD (KOBD)\n31 India OBD I (IOBD I)\n32 India OBD II (IOBD II)\n33 Heavy Duty Euro OBD Stage VI (HD EOBD-IV)\n34 OBD, OBD-II, and HD OBD\n35 Brazil OBD Phase 3 (OBDBr-3)\n53-250 Reserved\n251-255 Not available for assignment (SAE J1939 special meaning)",
     "bytes_count": 1
   },
   {
@@ -296,7 +296,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "[A0..A7] == [B1S1, B1S2, B2S1, B2S2, B3S1, B3S2, B4S1, B4S2]",
+    "formula": "Similar to PID $13, but [A0..A7] == [B1S1, B1S2, B2S1, B2S2, B3S1, B3S2, B4S1, B4S2]",
     "bytes_count": 1
   },
   {
@@ -306,7 +306,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "A0 == PTO status (1 == active). [A1..A7] not used",
+    "formula": "A0 == Power Take Off (PTO) status (1 == active). [A1..A7] not used",
     "bytes_count": 1
   },
   {
@@ -366,77 +366,77 @@
     "unit": "ratio V",
     "min_value": 0,
     "max_value": 2,
-    "formula": "2/65536 (256 A + B) — λ; 8/65536 (256 C + D) — voltage",
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x25",
     "mode": 1,
     "description": "Oxygen Sensor 2 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x26",
     "mode": 1,
     "description": "Oxygen Sensor 3 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x27",
     "mode": 1,
     "description": "Oxygen Sensor 4 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x28",
     "mode": 1,
     "description": "Oxygen Sensor 5 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x29",
     "mode": 1,
     "description": "Oxygen Sensor 6 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x2A",
     "mode": 1,
     "description": "Oxygen Sensor 7 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
     "pid_id": "0x2B",
     "mode": 1,
     "description": "Oxygen Sensor 8 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Voltage",
-    "unit": "",
+    "unit": "ratio V",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n8/65536 (256 C + D) — voltage",
     "bytes_count": 4
   },
   {
@@ -506,7 +506,7 @@
     "unit": "Pa",
     "min_value": -8192,
     "max_value": 8191.75,
-    "formula": "(256 A + B) / 4 − 8192",
+    "formula": "(256 A + B) / 4 (AB is two's complement signed)",
     "bytes_count": 2
   },
   {
@@ -526,77 +526,77 @@
     "unit": "ratio mA",
     "min_value": 0,
     "max_value": 2,
-    "formula": "2/65536 (256 A + B) — λ; (256 C + D) / 256 − 128 — current",
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x35",
     "mode": 1,
     "description": "Oxygen Sensor 2 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x36",
     "mode": 1,
     "description": "Oxygen Sensor 3 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x37",
     "mode": 1,
     "description": "Oxygen Sensor 4 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x38",
     "mode": 1,
     "description": "Oxygen Sensor 5 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x39",
     "mode": 1,
     "description": "Oxygen Sensor 6 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x3A",
     "mode": 1,
     "description": "Oxygen Sensor 7 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
     "pid_id": "0x3B",
     "mode": 1,
     "description": "Oxygen Sensor 8 AB: Air-Fuel Equivalence Ratio ( lambda,λ ) CD: Current",
-    "unit": "",
+    "unit": "ratio mA",
     "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "max_value": 2,
+    "formula": "2/65536 (256 A + B) — λ\n(256 C + D) / 256 − 128 — current",
     "bytes_count": 4
   },
   {
@@ -613,9 +613,9 @@
     "pid_id": "0x3D",
     "mode": 1,
     "description": "Catalyst Temperature: Bank 2, Sensor 1",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "°C",
+    "min_value": -40,
+    "max_value": 6513.5,
     "formula": "(256 A + B) / 10 − 40",
     "bytes_count": 2
   },
@@ -623,9 +623,9 @@
     "pid_id": "0x3E",
     "mode": 1,
     "description": "Catalyst Temperature: Bank 1, Sensor 2",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "°C",
+    "min_value": -40,
+    "max_value": 6513.5,
     "formula": "(256 A + B) / 10 − 40",
     "bytes_count": 2
   },
@@ -633,9 +633,9 @@
     "pid_id": "0x3F",
     "mode": 1,
     "description": "Catalyst Temperature: Bank 2, Sensor 2",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
+    "unit": "°C",
+    "min_value": -40,
+    "max_value": 6513.5,
     "formula": "(256 A + B) / 10 − 40",
     "bytes_count": 2
   },
@@ -656,7 +656,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "Bit encoded. The first byte is always zero",
     "bytes_count": 4
   },
   {
@@ -723,9 +723,9 @@
     "pid_id": "0x48",
     "mode": 1,
     "description": "Absolute throttle position C",
-    "unit": "",
+    "unit": "%",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 100,
     "formula": "100/255 A  (or A / 2.55)",
     "bytes_count": 1
   },
@@ -733,9 +733,9 @@
     "pid_id": "0x49",
     "mode": 1,
     "description": "Accelerator pedal position D",
-    "unit": "",
+    "unit": "%",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 100,
     "formula": "100/255 A  (or A / 2.55)",
     "bytes_count": 1
   },
@@ -743,9 +743,9 @@
     "pid_id": "0x4A",
     "mode": 1,
     "description": "Accelerator pedal position E",
-    "unit": "",
+    "unit": "%",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 100,
     "formula": "100/255 A  (or A / 2.55)",
     "bytes_count": 1
   },
@@ -753,9 +753,9 @@
     "pid_id": "0x4B",
     "mode": 1,
     "description": "Accelerator pedal position F",
-    "unit": "",
+    "unit": "%",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 100,
     "formula": "100/255 A  (or A / 2.55)",
     "bytes_count": 1
   },
@@ -763,9 +763,9 @@
     "pid_id": "0x4C",
     "mode": 1,
     "description": "Commanded throttle actuator",
-    "unit": "",
+    "unit": "%",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 100,
     "formula": "100/255 A  (or A / 2.55)",
     "bytes_count": 1
   },
@@ -783,9 +783,9 @@
     "pid_id": "0x4E",
     "mode": 1,
     "description": "Time since trouble codes cleared",
-    "unit": "",
+    "unit": "min",
     "min_value": 0,
-    "max_value": 0,
+    "max_value": 65535,
     "formula": "256 A + B",
     "bytes_count": 2
   },
@@ -796,7 +796,7 @@
     "unit": "ratio, V, mA, kPa",
     "min_value": 0,
     "max_value": 255,
-    "formula": "A — λ/ER ratio; B — O2 voltage; C — O2 current; D — intake MAP × 10",
+    "formula": "A — λ/ER ratio\nB — O2 voltage\nC — O2 current\nD — intake MAP × 10",
     "bytes_count": 4
   },
   {
@@ -806,7 +806,7 @@
     "unit": "g/s",
     "min_value": 0,
     "max_value": 2550,
-    "formula": "A × 10",
+    "formula": "A × 10; B, C, and D are reserved for future use",
     "bytes_count": 4
   },
   {
@@ -816,7 +816,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Enumerated (fuel type table)",
+    "formula": "Enumerated (fuel type table):\n0 Not available\n1 Gasoline\n2 Methanol\n3 Ethanol\n4 Diesel\n5 LPG\n6 CNG\n7 Propane\n8 Electric\n9 Bifuel running Gasoline\n10 Bifuel running Methanol\n11 Bifuel running Ethanol\n12 Bifuel running LPG\n13 Bifuel running CNG\n14 Bifuel running Propane\n15 Bifuel running Electricity\n16 Bifuel running electric and combustion engine\n17 Hybrid gasoline\n18 Hybrid Ethanol\n19 Hybrid Diesel\n20 Hybrid Electric\n21 Hybrid running electric and combustion engine\n22 Hybrid Regenerative\n23 Bifuel running diesel",
     "bytes_count": 1
   },
   {
@@ -846,7 +846,7 @@
     "unit": "Pa",
     "min_value": -32768,
     "max_value": 32767,
-    "formula": "(256 A + B) − 32768",
+    "formula": "256 A + B (AB is two's complement signed)",
     "bytes_count": 2
   },
   {
@@ -856,37 +856,37 @@
     "unit": "%",
     "min_value": -100,
     "max_value": 99.2,
-    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1; same for B — bank 3",
+    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1\n100/128 B − 100  (or B / 1.28 − 100) — bank 3",
     "bytes_count": 2
   },
   {
     "pid_id": "0x56",
     "mode": 1,
     "description": "Long term secondary oxygen sensor trim, A: bank 1, B: bank 3",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
-    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1; same for B — bank 3",
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
+    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1\n100/128 B − 100  (or B / 1.28 − 100) — bank 3",
     "bytes_count": 2
   },
   {
     "pid_id": "0x57",
     "mode": 1,
     "description": "Short term secondary oxygen sensor trim, A: bank 2, B: bank 4",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
-    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 2; same for B — bank 4",
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
+    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1\n100/128 B − 100  (or B / 1.28 − 100) — bank 4",
     "bytes_count": 2
   },
   {
     "pid_id": "0x58",
     "mode": 1,
     "description": "Long term secondary oxygen sensor trim, A: bank 2, B: bank 4",
-    "unit": "",
-    "min_value": 0,
-    "max_value": 0,
-    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 2; same for B — bank 4",
+    "unit": "%",
+    "min_value": -100,
+    "max_value": 99.2,
+    "formula": "100/128 A − 100  (or A / 1.28 − 100)  — bank 1\n100/128 B − 100  (or B / 1.28 − 100) — bank 4",
     "bytes_count": 2
   },
   {
@@ -956,7 +956,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Enumerated (emission requirements)",
+    "formula": "Bit encoded",
     "bytes_count": 1
   },
   {
@@ -1006,7 +1006,7 @@
     "unit": "%",
     "min_value": -125,
     "max_value": 130,
-    "formula": "A − 125",
+    "formula": "A - 125 Idle\nB – 125 Engine point 1\nC – 125 Engine point 2\nD – 125 Engine point 3\nE - 125 Engine point 4",
     "bytes_count": 5
   },
   {
@@ -1016,7 +1016,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "(Enumerated bit-encoded)",
+    "formula": "Bit encoded",
     "bytes_count": 2
   },
   {
@@ -1026,7 +1026,7 @@
     "unit": "g/s",
     "min_value": 0,
     "max_value": 2047.96875,
-    "formula": "Various: see Wikipedia",
+    "formula": "[A0] == Sensor A Supported\n[A1] == Sensor B Supported\nSensor A: (256 B + C) / 32\nSensor B: (256 D + E) / 32",
     "bytes_count": 5
   },
   {
@@ -1036,7 +1036,7 @@
     "unit": "°C",
     "min_value": -40,
     "max_value": 215,
-    "formula": "A − 40  (sensor 1)",
+    "formula": "[A0] == Sensor 1 Supported\n[A1] == Sensor 2 Supported\nSensor 1: B - 40\nSensor 2: C - 40",
     "bytes_count": 3
   },
   {
@@ -1046,7 +1046,7 @@
     "unit": "°C",
     "min_value": -40,
     "max_value": 215,
-    "formula": "A − 40  (sensor 2)",
+    "formula": "[A0] == Sensor 1 Supported\n[A1] == Sensor 2 Supported\nSensor 1: B - 40\nSensor 2: C - 40",
     "bytes_count": 3
   },
   {
@@ -1056,7 +1056,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1066,7 +1066,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1076,7 +1076,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1086,7 +1086,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1096,7 +1096,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 11
   },
   {
@@ -1106,7 +1106,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "(256 A + B) / 10",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1116,7 +1116,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 3
   },
   {
@@ -1126,7 +1126,7 @@
     "unit": "kPa",
     "min_value": 0,
     "max_value": 2047.96875,
-    "formula": "(256 A + B) / 100",
+    "formula": "Sersor 1: (256 D + E) /  0.03125",
     "bytes_count": 10
   },
   {
@@ -1136,7 +1136,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 6
   },
   {
@@ -1146,7 +1146,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1156,7 +1156,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1166,7 +1166,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1176,7 +1176,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1186,7 +1186,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1196,7 +1196,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1206,7 +1206,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "[A0] == EGT sensor 1 Supported\n[A1] == EGT sensor 2 Supported\n[A2] == EGT sensor 3 Supported\n[A3] == EGT sensor 4 Supported\n[A7..A4] == Reserved\nB-C Temperature read by EGT sensor 1\nD-E Temperature read by EGT sensor 2\nF-G Temperature read by EGT sensor 3\nH-I Temperature read by EGT sensor 4",
     "bytes_count": 9
   },
   {
@@ -1216,7 +1216,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "[A0] == EGT sensor 1 Supported\n[A1] == EGT sensor 2 Supported\n[A2] == EGT sensor 3 Supported\n[A3] == EGT sensor 4 Supported\n[A7..A4] == Reserved\nB-C Temperature read by EGT sensor 1\nD-E Temperature read by EGT sensor 2\nF-G Temperature read by EGT sensor 3\nH-I Temperature read by EGT sensor 4",
     "bytes_count": 9
   },
   {
@@ -1226,7 +1226,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1236,7 +1236,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1246,7 +1246,7 @@
     "unit": "°C",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "(256 A + B) / 10 - 40",
     "bytes_count": 9
   },
   {
@@ -1256,7 +1256,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "",
     "bytes_count": 1
   },
   {
@@ -1266,17 +1266,17 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "",
     "bytes_count": 1
   },
   {
     "pid_id": "0x7F",
     "mode": 1,
-    "description": "Engine run time [ b ]",
+    "description": "Engine run time",
     "unit": "s",
     "min_value": 0,
     "max_value": 0,
-    "formula": "(A × 2^24 + B × 2^16 + C × 2^8 + D) / 10",
+    "formula": "B × 2^24 + C × 2^16 + D × 2^8 + E",
     "bytes_count": 13
   },
   {
@@ -1296,7 +1296,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "A × 2^24 + B × 2^16 + C × 2^8 + D",
+    "formula": "",
     "bytes_count": 41
   },
   {
@@ -1306,7 +1306,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "A × 2^24 + B × 2^16 + C × 2^8 + D",
+    "formula": "",
     "bytes_count": 41
   },
   {
@@ -1316,7 +1316,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1326,7 +1326,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 1
   },
   {
@@ -1336,7 +1336,7 @@
     "unit": "%",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "100/255 F  (or F / 2.55)",
     "bytes_count": 10
   },
   {
@@ -1346,7 +1346,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1356,7 +1356,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1366,7 +1366,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 13
   },
   {
@@ -1376,7 +1376,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "A × 2^24 + B × 2^16 + C × 2^8 + D",
+    "formula": "",
     "bytes_count": 41
   },
   {
@@ -1386,7 +1386,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "A × 2^24 + B × 2^16 + C × 2^8 + D",
+    "formula": "",
     "bytes_count": 41
   },
   {
@@ -1396,7 +1396,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1406,7 +1406,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 17
   },
   {
@@ -1416,7 +1416,7 @@
     "unit": "%",
     "min_value": 0,
     "max_value": 100,
-    "formula": "100/255 A  (or A / 2.55)",
+    "formula": "",
     "bytes_count": 1
   },
   {
@@ -1432,11 +1432,11 @@
   {
     "pid_id": "0x8F",
     "mode": 1,
-    "description": "PM Sensor Bank 1 &amp; 2",
+    "description": "PM Sensor Bank 1 & 2",
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1446,7 +1446,7 @@
     "unit": "h",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 3
   },
   {
@@ -1456,7 +1456,7 @@
     "unit": "h",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 5
   },
   {
@@ -1466,7 +1466,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 2
   },
   {
@@ -1476,7 +1476,7 @@
     "unit": "h",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 3
   },
   {
@@ -1486,7 +1486,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 12
   },
   {
@@ -1496,7 +1496,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1506,7 +1506,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1516,7 +1516,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 6
   },
   {
@@ -1526,7 +1526,7 @@
     "unit": "%",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "100/255 D  (or D / 2.55)",
     "bytes_count": 4
   },
   {
@@ -1536,7 +1536,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 17
   },
   {
@@ -1546,7 +1546,7 @@
     "unit": "g/s",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 4
   },
   {
@@ -1556,7 +1556,7 @@
     "unit": "kg/h",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 2
   },
   {
@@ -1566,7 +1566,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1586,7 +1586,7 @@
     "unit": "ppm",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1596,7 +1596,7 @@
     "unit": "mg/stroke",
     "min_value": 0,
     "max_value": 2047.96875,
-    "formula": "(256 A + B) / 100",
+    "formula": "(256 A + B) / 32",
     "bytes_count": 2
   },
   {
@@ -1606,7 +1606,7 @@
     "unit": "Pa",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 9
   },
   {
@@ -1616,7 +1616,7 @@
     "unit": "ratio",
     "min_value": 0,
     "max_value": 65.535,
-    "formula": "(256 A + B) / 1000",
+    "formula": "[A1] == Supported\n(256 C + D) / 1000",
     "bytes_count": 4
   },
   {
@@ -1626,13 +1626,13 @@
     "unit": "%",
     "min_value": 0,
     "max_value": 127.5,
-    "formula": "Various: see Wikipedia",
+    "formula": "[A0]= 1:Supported;0:Unsupported\nB / 2",
     "bytes_count": 4
   },
   {
     "pid_id": "0xA6",
     "mode": 1,
-    "description": "Odometer [ c ]",
+    "description": "Odometer",
     "unit": "km",
     "min_value": 0,
     "max_value": 429496729.5,
@@ -1646,7 +1646,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 4
   },
   {
@@ -1656,7 +1656,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 4
   },
   {
@@ -1666,7 +1666,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "[A0]=1:Supported;0:Unsupported, [B0]=1:Yes;0:No",
+    "formula": "[A0]= 1:Supported;0:Unsupported\n[B0]= 1:Yes;0:No",
     "bytes_count": 4
   },
   {
@@ -1686,7 +1686,7 @@
     "unit": "%",
     "min_value": 0,
     "max_value": 25700,
-    "formula": "Returns numerous data, including Drive Condition ID and Engine Speed",
+    "formula": "Returns numerous data, including Drive Condition ID and Engine Speed*",
     "bytes_count": 2
   },
   {
@@ -1696,7 +1696,7 @@
     "unit": "seconds / Count",
     "min_value": 0,
     "max_value": 4294967295,
-    "formula": "B5=Engine Idle Request, B6=Engine Stop Request; Byte1=Time(sec), Byte2=Count",
+    "formula": "B5 is Engine Idle Request\nB6 is Engine Stop Request*\nFirst byte = Time in seconds\nSecond byte = Count",
     "bytes_count": 8
   },
   {
@@ -1706,7 +1706,7 @@
     "unit": "kPa",
     "min_value": 0,
     "max_value": 5177,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 4
   },
   {
@@ -1716,7 +1716,7 @@
     "unit": "h",
     "min_value": 0,
     "max_value": 65535,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 7
   },
   {
@@ -1726,7 +1726,7 @@
     "unit": "km",
     "min_value": 0,
     "max_value": 65535,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 2
   },
   {
@@ -1736,7 +1736,7 @@
     "unit": "Bit",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Various: see Wikipedia",
+    "formula": "",
     "bytes_count": 1
   },
   {
@@ -1746,7 +1746,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Bit encoded",
+    "formula": "Bit encoded [A7..D0] == [PID $01..PID $20]",
     "bytes_count": 4
   },
   {
@@ -1756,7 +1756,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Usually the value will be 5",
+    "formula": "Usually the value will be 5.",
     "bytes_count": 1
   },
   {
@@ -1766,7 +1766,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "17-char VIN, ASCII-encoded and left-padded with null chars (0x00)",
+    "formula": "17-char VIN, ASCII-encoded and left-padded with null chars (0x00) if needed to.",
     "bytes_count": 17
   },
   {
@@ -1776,7 +1776,7 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Multiple of 4 (4 messages per ID)",
+    "formula": "It will be a multiple of 4 (4 messages are needed for each ID).",
     "bytes_count": 1
   },
   {
@@ -1786,47 +1786,47 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Up to 16 ASCII chars. Unused bytes = 0x00. Multiple CALIDs (16 bytes each)",
+    "formula": "Up to 16 ASCII chars. Data bytes not used will be reported as null bytes (0x00). Several CALID can be output (16 bytes each)",
     "bytes_count": 16
   },
   {
     "pid_id": "0x05",
     "mode": 9,
-    "description": "Calibration Verification Number (CVN) message count for PID 06. Only for ISO 9141-2, ISO 14230-4 and SAE J1850.",
+    "description": "Calibration verification numbers (CVN) message count for PID 06. Only for ISO 9141-2, ISO 14230-4 and SAE J1850.",
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "Multiple of 4 (4 messages per CVN)",
+    "formula": "",
     "bytes_count": 1
   },
   {
     "pid_id": "0x06",
     "mode": 9,
-    "description": "Calibration Verification Number (CVN)",
+    "description": "Calibration Verification Numbers (CVN) Several CVN can be output (4 bytes each) the number of CVN and CALID must match",
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "4 ASCII chars per CVN. Multiple CVNs possible (4 bytes each)",
+    "formula": "Raw data left-padded with null characters (0x00). Usually displayed as hex string.",
     "bytes_count": 4
   },
   {
     "pid_id": "0x07",
     "mode": 9,
-    "description": "In-use performance tracking message count for PID 08 and 0B",
+    "description": "In-use performance tracking message count for PID 08 and 0B. Only for ISO 9141-2, ISO 14230-4 and SAE J1850.",
     "unit": "",
-    "min_value": 0,
-    "max_value": 0,
-    "formula": "",
+    "min_value": 8,
+    "max_value": 10,
+    "formula": "8 if sixteen values are required to be reported, 9 if eighteen values are required to be reported, and 10 if twenty values are required to be reported (one message reports two values, each one consisting in two bytes).",
     "bytes_count": 1
   },
   {
     "pid_id": "0x08",
     "mode": 9,
-    "description": "In-use performance tracking for spark ignition engines",
+    "description": "In-use performance tracking for spark ignition vehicles",
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "",
+    "formula": "4 or 5 messages, each one containing 4 bytes (two values).\nThe count of data items should be reported at the beginning (the first byte).\nAll data items of the In-use Performance Tracking record consist of two bytes and are reported in this order (each message contains two items, hence the message length is 4):\nOBDCOND - OBD Monitoring Conditions Encountered Counts\nIGNCNTR - Ignition Counter\nCATCOMP1 - Catalyst Monitor Completion Counts Bank 1\nCATCOND1 - Catalyst Monitor Conditions Encountered Counts Bank 1\nCATCOMP2 - Catalyst Monitor Completion Counts Bank 2\nCATCOND2 - Catalyst Monitor Conditions Encountered Counts Bank 2\nO2SCOMP1 - O2 Sensor Monitor Completion Counts Bank 1\nO2SCOND1 - O2 Sensor Monitor Conditions Encountered Counts Bank 1\nO2SCOMP2 - O2 Sensor Monitor Completion Counts Bank 2\nO2SCOND2 - O2 Sensor Monitor Conditions Encountered Counts Bank 2\nEGRCOMP - EGR Monitor Completion Condition Counts\nEGRCOND - EGR Monitor Conditions Encountered Counts\nAIRCOMP - AIR Monitor Completion Condition Counts (Secondary Air)\nAIRCOND - AIR Monitor Conditions Encountered Counts (Secondary Air)\nEVAPCOMP - EVAP Monitor Completion Condition Counts\nEVAPCOND - EVAP Monitor Conditions Encountered Counts\nSO2SCOMP1 - Secondary O2 Sensor Monitor Completion Counts Bank 1\nSO2SCOND1 - Secondary O2 Sensor Monitor Conditions Encountered Counts Bank 1\nSO2SCOMP2 - Secondary O2 Sensor Monitor Completion Counts Bank 2\nSO2SCOND2 - Secondary O2 Sensor Monitor Conditions Encountered Counts Bank 2",
     "bytes_count": 4
   },
   {
@@ -1846,17 +1846,17 @@
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "20 ASCII chars",
+    "formula": "ASCII-coded. Right-padded with null chars (0x00).",
     "bytes_count": 20
   },
   {
     "pid_id": "0x0B",
     "mode": 9,
-    "description": "In-use performance tracking for compression ignition engines",
+    "description": "In-use performance tracking for compression ignition vehicles",
     "unit": "",
     "min_value": 0,
     "max_value": 0,
-    "formula": "",
+    "formula": "5 messages, each one containing 4 bytes (two values).\nAll data items consist of two bytes and are reported in this order (each message contains two items, hence message length is 4):\nOBDCOND - OBD Monitoring Conditions Encountered Counts\nIGNCNTR - Ignition Counter\nHCCATCOMP - NMHC Catalyst Monitor Completion Condition Counts\nHCCATCOND - NMHC Catalyst Monitor Conditions Encountered Counts\nNCATCOMP - NOx/SCR Catalyst Monitor Completion Condition Counts\nNCATCOND - NOx/SCR Catalyst Monitor Conditions Encountered Counts\nNADSCOMP - NOx Adsorber Monitor Completion Condition Counts\nNADSCOND - NOx Adsorber Monitor Conditions Encountered Counts\nPMCOMP - PM Filter Monitor Completion Condition Counts\nPMCOND - PM Filter Monitor Conditions Encountered Counts\nEGSCOMP - Exhaust Gas Sensor Monitor Completion Condition Counts\nEGSCOND - Exhaust Gas Sensor Monitor Conditions Encountered Counts\nEGRCOMP - EGR and/or VVT Monitor Completion Condition Counts\nEGRCOND - EGR and/or VVT Monitor Conditions Encountered Counts\nBPCOMP - Boost Pressure Monitor Completion Condition Counts\nBPCOND - Boost Pressure Monitor Conditions Encountered Counts\nFUELCOMP - Fuel Monitor Completion Condition Counts\nFUELCOND - Fuel Monitor Conditions Encountered Counts",
     "bytes_count": 4
   }
 ]
