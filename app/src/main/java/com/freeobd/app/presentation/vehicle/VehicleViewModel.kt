@@ -3,6 +3,7 @@ package com.freeobd.app.presentation.vehicle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.local.AppDatabase
+import com.freeobd.app.data.local.entity.PidMetadataEntity
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.domain.repository.OBDRepository
 import kotlinx.coroutines.async
@@ -23,13 +24,23 @@ class VehicleViewModel(
     /** InfoType metadata loaded from pid_definitions.json (mode 9). */
     private var infoTypeMeta: Map<Int, VehicleInfoTypeMeta> = emptyMap()
 
+    private val _selectedPidMetadata = MutableStateFlow<PidMetadataEntity?>(null)
+    val selectedPidMetadata: StateFlow<PidMetadataEntity?> = _selectedPidMetadata.asStateFlow()
+
     fun onEvent(event: VehicleEvent) {
         when (event) {
             VehicleEvent.Load -> load()
             is VehicleEvent.ScrollToType -> {
                 _uiState.value = _uiState.value.copy(scrollToInfoType = event.infoType)
             }
+            is VehicleEvent.ShowInfoTypeDetail -> {
+                _selectedPidMetadata.value = infoTypeMeta[event.infoType]?.entity
+            }
         }
+    }
+
+    fun dismissPidDetail() {
+        _selectedPidMetadata.value = null
     }
 
     fun onScrollConsumed() {
@@ -113,7 +124,8 @@ class VehicleViewModel(
             entity.pidId to VehicleInfoTypeMeta(
                 infoType = entity.pidId,
                 command = String.format("09%02X", entity.pidId),
-                description = entity.description
+                description = entity.description,
+                entity = entity
             )
         }
     }

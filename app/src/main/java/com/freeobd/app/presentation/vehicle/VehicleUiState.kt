@@ -24,4 +24,6 @@ sealed interface VehicleEvent {
     data object Load : VehicleEvent
     /** Scroll the detail list to a specific InfoType. */
     data class ScrollToType(val infoType: Int) : VehicleEvent
+    /** Show InfoType metadata detail dialog. */
+    data class ShowInfoTypeDetail(val infoType: Int) : VehicleEvent
 }

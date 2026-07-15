@@ -8,6 +8,7 @@ import com.freeobd.app.presentation.bluetooth.BluetoothScreen
 import com.freeobd.app.presentation.dashboard.DashboardScreen
 import com.freeobd.app.presentation.debug.DebugConsoleScreen
 import com.freeobd.app.presentation.dtc.DtcScreen
+import com.freeobd.app.presentation.dtc_lookup.DtcLookupScreen
 import com.freeobd.app.presentation.freezeframe.FreezeFrameScreen
 import com.freeobd.app.presentation.livedata.LiveDataScreen
 import com.freeobd.app.presentation.vehicle.VehicleScreen
@@ -65,6 +66,11 @@ fun AppNavHost(
                         launchSingleTop = true
                     }
                 },
+                onNavigateToDtcLookup = {
+                    navController.navigate(NavRoutes.DtcLookup.route) {
+                        launchSingleTop = true
+                    }
+                },
                 onNavigateToDebugConsole = {
                     navController.navigate(NavRoutes.DebugConsole.route) {
                         launchSingleTop = true
@@ -104,6 +110,13 @@ fun AppNavHost(
         // Vehicle Information
         composable(NavRoutes.VehicleInfo.route) {
             VehicleScreen(
+                onNavigateBack = popBack
+            )
+        }
+
+        // DTC Lookup (offline reference)
+        composable(NavRoutes.DtcLookup.route) {
+            DtcLookupScreen(
                 onNavigateBack = popBack
             )
         }

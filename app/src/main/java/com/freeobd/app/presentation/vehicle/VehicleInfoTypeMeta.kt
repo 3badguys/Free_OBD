@@ -10,7 +10,8 @@ package com.freeobd.app.presentation.vehicle
 data class VehicleInfoTypeMeta(
     val infoType: Int,
     val command: String,
-    val description: String
+    val description: String,
+    val entity: com.freeobd.app.data.local.entity.PidMetadataEntity? = null
 )
 
 /** Per-type state combining support info and fetch result. */

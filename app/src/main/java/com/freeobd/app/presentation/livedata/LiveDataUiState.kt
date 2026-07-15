@@ -27,4 +27,5 @@ sealed interface LiveDataEvent {
     data object Load : LiveDataEvent
     data class SelectSegment(val segment: Int) : LiveDataEvent
     data class ScrollToPid(val pidId: Int) : LiveDataEvent
+    data class ShowPidDetail(val pidId: Int) : LiveDataEvent
 }

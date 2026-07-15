@@ -33,7 +33,9 @@ Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝�
 | **Live Data Explorer** | 按段浏览全部 Mode 01 PID 及其实时数值 |
 | **冻结帧数据** | Mode 02 位图发现 + 逐 PID 拉取，支持多帧前后切换 |
 | **故障码读取/清除** | Mode 03/07/0A 三标签页，清码 Mode 04 需确认对话框 |
-| **故障码详情** | 内置 SAE J2012 故障码数据库（9400+ 代码，从预置 dtc_codes.db 加载） |
+| **故障码详情** | 内置 SAE J2012 故障码数据库（从预置 dtc_codes.db 加载） |
+| **DTC 离线查询** | 故障码参考页面 — 分页浏览、搜索、每页条数可选、页码跳转 |
+| **PID 详情弹窗** | 点击任意 PID 卡片弹出完整元数据（描述、单位、范围、公式），三个 Explorer 页面统一复用 |
 | **车辆信息** | Mode 09 位图发现 + 逐项拉取 VIN、校准 ID、CVN、ECU 名称 |
 | **调试控制台** | 实时查看 TX/RX 命令日志，支持 SAF 保存路径选择 + 手动 TX 输入 |
 | **运行时权限** | Android 12+ / 12 以下自适应权限请求 |
@@ -96,9 +98,10 @@ app/src/main/java/com/freeobd/app/
 │   ├── livedata/                # Live Data Explorer — Mode 01 位图 + PID 浏览
 │   ├── freezeframe/             # Freeze Frame — Mode 02 位图 + 多帧导航
 │   ├── dtc/                     # 故障码页面 + 详情对话框（Stored/Pending/Permanent）
+│   ├── dtc_lookup/              # DTC 离线查询页面 — 分页浏览、搜索、页数/页码控制
 │   ├── vehicle/                 # 车辆信息 — Mode 09 位图 + InfoType 卡片
 │   ├── debug/                   # 调试控制台页面（命令日志 + 手动 TX）
-│   ├── components/              # 共享组件（SupportBlockGrid, DetailCard, SupportLegend）
+│   ├── components/              # 共享组件（SupportBlockGrid, DetailCard, PidDetailDialog, SupportLegend）
 │   ├── theme/                   # 深色主题配色（汽车仪表盘风格）
 │   └── navigation/              # NavRoutes + AppNavHost
 ├── di/
@@ -278,6 +281,8 @@ cd Free_OBD
 7. 进入 **Freeze Frame Data** — 查看冻结帧位图和 P0170 数据
 8. 进入 **Diagnostic Trouble Codes** — 查看示例故障码
 9. 进入 **Vehicle Information** — 查看示例 VIN 和 ECU 信息
+10. 进入 **DTC Lookup** — 离线浏览和搜索故障码定义
+11. 开启 **Debug Logging** 后进入 **Debug Console** — 查看模拟 AT 命令交互
 
 > Demo 模式无需蓝牙权限，无需任何硬件，所有数据均为本地模拟。
 
@@ -329,7 +334,23 @@ cd Free_OBD
   - ❌ —— ECU 不支持该 InfoType
 - 右上角刷新按钮可重新拉取全部数据
 
-### 7. 调试控制台
+### 7. PID 详情弹窗
+
+- 各 Explorer 页面（Live Data / Freeze Frame / Vehicle Info）中的 PID/InfoType 卡片均支持点击
+- 弹出对话框显示来自 `pid_definitions.json` 的完整元数据：
+  - 描述、单位、数值范围、字节数
+  - **公式**（等宽字体展示，自动处理换行）
+
+### 8. DTC 查询
+
+- 点击 **DTC Lookup** 进入故障码参考页面
+- 内置故障码定义，支持离线浏览
+- **搜索**：输入框输入代码或描述关键词，300ms 防抖自动查询
+- **分页**：默认每页 50 条，下拉菜单支持 10/20/50/100/200/500 条切换
+- **跳页**：输入页码快速跳转
+- **详情**：点击任意条目弹出代码、描述、分类（POWERTRAIN / BODY / CHASSIS / NETWORK）
+
+### 9. 调试控制台
 
 - 在蓝牙扫描界面的 **Advanced** 选项中开启 **Enable Debug Logging**
 - 连接成功后，点击 **Debug Console** 进入调试页面

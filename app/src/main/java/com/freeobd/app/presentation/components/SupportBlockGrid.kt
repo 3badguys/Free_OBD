@@ -113,6 +113,7 @@ fun SupportLegend(modifier: Modifier = Modifier) {
  * @param isLoading True while fetching.
  * @param resultText Display text on success, null while loading.
  * @param errorText Display text on error, null on success.
+ * @param onClick Optional callback when the card is tapped (for PID detail dialog).
  */
 @Composable
 fun DetailCard(
@@ -121,10 +122,15 @@ fun DetailCard(
     isSupported: Boolean,
     isLoading: Boolean,
     resultText: String?,
-    errorText: String?
+    errorText: String?,
+    onClick: (() -> Unit)? = null
 ) {
+    val clickModifier = if (onClick != null)
+        Modifier.clickable(onClick = onClick)
+    else Modifier
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().then(clickModifier),
         colors = CardDefaults.cardColors(
             containerColor = if (isSupported) Surface else SurfaceVariant.copy(alpha = 0.5f)
         )

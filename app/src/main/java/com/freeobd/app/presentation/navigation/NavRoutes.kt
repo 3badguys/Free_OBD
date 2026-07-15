@@ -24,6 +24,9 @@ sealed class NavRoutes(val route: String) {
     /** Vehicle information (VIN, calibration IDs, CVN). */
     data object VehicleInfo : NavRoutes("vehicle_info")
 
+    /** Diagnostic Trouble Code reference lookup (offline, from dtc_codes.db). */
+    data object DtcLookup : NavRoutes("dtc_lookup")
+
     /** Debug console — view raw ELM327 command/response log. */
     data object DebugConsole : NavRoutes("debug_console")
 }

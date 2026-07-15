@@ -3,6 +3,7 @@ package com.freeobd.app.presentation.freezeframe
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.local.AppDatabase
+import com.freeobd.app.data.local.entity.PidMetadataEntity
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.data.remote.NegativeResponseException
 import com.freeobd.app.domain.model.FreezeFrameDiscovery
@@ -22,7 +23,10 @@ class FreezeFrameViewModel(
     private val _uiState = MutableStateFlow(FreezeFrameUiState())
     val uiState: StateFlow<FreezeFrameUiState> = _uiState.asStateFlow()
 
-    private var pidNames: Map<Int, String> = emptyMap()
+    private var pidMetadata: Map<Int, PidMetadataEntity> = emptyMap()
+
+    private val _selectedPidMetadata = MutableStateFlow<PidMetadataEntity?>(null)
+    val selectedPidMetadata: StateFlow<PidMetadataEntity?> = _selectedPidMetadata.asStateFlow()
 
     /**
      * When navigating frames, the target frame number is staged here.
@@ -55,7 +59,14 @@ class FreezeFrameViewModel(
             is FreezeFrameEvent.ScrollToPid -> {
                 _uiState.value = _uiState.value.copy(scrollToPid = event.pidId)
             }
+            is FreezeFrameEvent.ShowPidDetail -> {
+                _selectedPidMetadata.value = pidMetadata[event.pidId]
+            }
         }
+    }
+
+    fun dismissPidDetail() {
+        _selectedPidMetadata.value = null
     }
 
     fun onScrollConsumed() {
@@ -70,7 +81,7 @@ class FreezeFrameViewModel(
             val state = _uiState.value
             val queryFrame = targetFrame ?: state.frameNumber
 
-            if (pidNames.isEmpty()) loadPidNames()
+            if (pidMetadata.isEmpty()) loadPidNames()
 
             activeRepo.discoverFreezeFramePIDs(state.segment, queryFrame).fold(
                 onSuccess = { discovery ->
@@ -103,7 +114,7 @@ class FreezeFrameViewModel(
         val errorHex = (error as? NegativeResponseException)?.toHexString() ?: "ERR"
         val states = (1..32).map { offset ->
             val pidId = segment + offset
-            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            val desc = pidMetadata[pidId]?.description ?: String.format("PID 0x%02X", pidId)
             FreezeFramePidState(pidId = pidId, description = desc, isSupported = false,
                 result = FreezeFramePidResult.Error("Segment not available"))
         }
@@ -119,7 +130,7 @@ class FreezeFrameViewModel(
         val segment = _uiState.value.segment
         val states = (1..32).map { offset ->
             val pidId = segment + offset
-            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            val desc = pidMetadata[pidId]?.description ?: String.format("PID 0x%02X", pidId)
             FreezeFramePidState(
                 pidId = pidId,
                 description = desc,
@@ -160,8 +171,8 @@ class FreezeFrameViewModel(
     }
 
     private suspend fun loadPidNames() {
-        pidNames = database.pidMetadataDao().getByMode(0x01).associate {
-            it.pidId to it.description
+        pidMetadata = database.pidMetadataDao().getByMode(0x01).associate {
+            it.pidId to it
         }
     }
 }

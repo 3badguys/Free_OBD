@@ -30,6 +30,31 @@ interface DtcDao {
     @Query("SELECT COUNT(*) FROM dtc")
     suspend fun count(): Int
 
+    /** Paginated: get a page of all DTC codes. */
+    @Query("SELECT * FROM dtc ORDER BY code ASC LIMIT :limit OFFSET :offset")
+    suspend fun getPage(limit: Int, offset: Int): List<DtcEntity>
+
+    /** Count total DTC codes in the database. */
+    @Query("SELECT COUNT(*) FROM dtc")
+    suspend fun getTotalCount(): Int
+
+    /** Paginated search by code or description. */
+    @Query(
+        "SELECT * FROM dtc " +
+        "WHERE description LIKE '%' || :query || '%' " +
+        "OR code LIKE '%' || :query || '%' " +
+        "ORDER BY code ASC LIMIT :limit OFFSET :offset"
+    )
+    suspend fun searchPage(query: String, limit: Int, offset: Int): List<DtcEntity>
+
+    /** Count matching search results. */
+    @Query(
+        "SELECT COUNT(*) FROM dtc " +
+        "WHERE description LIKE '%' || :query || '%' " +
+        "OR code LIKE '%' || :query || '%'"
+    )
+    suspend fun searchCount(query: String): Int
+
     @Query("DELETE FROM dtc")
     suspend fun deleteAll()
 }

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.PidDetailDialog
 import com.freeobd.app.presentation.components.SupportBlockGrid
 import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
@@ -46,6 +47,7 @@ fun VehicleScreen(
     viewModel: VehicleViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedPidMetadata by viewModel.selectedPidMetadata.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -136,11 +138,22 @@ fun VehicleScreen(
                         listState = listState,
                         onBlockClick = { infoType ->
                             viewModel.onEvent(VehicleEvent.ScrollToType(infoType))
+                        },
+                        onDetailClick = { infoType ->
+                            viewModel.onEvent(VehicleEvent.ShowInfoTypeDetail(infoType))
                         }
                     )
                 }
             }
         }
+    }
+
+    // PID detail dialog
+    if (selectedPidMetadata != null) {
+        PidDetailDialog(
+            metadata = selectedPidMetadata!!,
+            onDismiss = { viewModel.dismissPidDetail() }
+        )
     }
 }
 
@@ -150,7 +163,8 @@ fun VehicleScreen(
 private fun VehicleInfoContent(
     state: VehicleUiState,
     listState: androidx.compose.foundation.lazy.LazyListState,
-    onBlockClick: (Int) -> Unit
+    onBlockClick: (Int) -> Unit,
+    onDetailClick: (Int) -> Unit
 ) {
     // Show all InfoTypes in detail cards
     val detailItems = state.typeStates
@@ -187,7 +201,8 @@ private fun VehicleInfoContent(
                 isSupported = ts.isSupported,
                 isLoading = ts.result is VehicleInfoTypeResult.Loading,
                 resultText = (ts.result as? VehicleInfoTypeResult.Success)?.data,
-                errorText = (ts.result as? VehicleInfoTypeResult.Error)?.message
+                errorText = (ts.result as? VehicleInfoTypeResult.Error)?.message,
+                onClick = { onDetailClick(ts.meta.infoType) }
             )
         }
 

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.PidDetailDialog
 import com.freeobd.app.presentation.components.SupportBlockGrid
 import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
@@ -34,6 +35,7 @@ fun LiveDataScreen(
     viewModel: LiveDataViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedPidMetadata by viewModel.selectedPidMetadata.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) { viewModel.onEvent(LiveDataEvent.Load) }
@@ -90,6 +92,14 @@ fun LiveDataScreen(
                 else -> LiveDataContent(uiState, listState, segments, viewModel)
             }
         }
+    }
+
+    // PID detail dialog
+    if (selectedPidMetadata != null) {
+        PidDetailDialog(
+            metadata = selectedPidMetadata!!,
+            onDismiss = { viewModel.dismissPidDetail() }
+        )
     }
 }
 
@@ -163,7 +173,8 @@ private fun LiveDataContent(
                 isSupported = ps.isSupported,
                 isLoading = ps.result is LiveDataPidResult.Loading,
                 resultText = (ps.result as? LiveDataPidResult.Success)?.data,
-                errorText = (ps.result as? LiveDataPidResult.Error)?.message
+                errorText = (ps.result as? LiveDataPidResult.Error)?.message,
+                onClick = { viewModel.onEvent(LiveDataEvent.ShowPidDetail(ps.pidId)) }
             )
         }
 

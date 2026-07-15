@@ -44,6 +44,7 @@ fun BluetoothScreen(
     onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
+    onNavigateToDtcLookup: () -> Unit = {},
     onNavigateToDebugConsole: () -> Unit = {},
     viewModel: BluetoothViewModel = koinViewModel()
 ) {
@@ -262,6 +263,7 @@ fun BluetoothScreen(
                         onNavigateToFreezeFrame = onNavigateToFreezeFrame,
                         onNavigateToDTC = onNavigateToDTC,
                         onNavigateToVehicleInfo = onNavigateToVehicleInfo,
+                        onNavigateToDtcLookup = onNavigateToDtcLookup,
                         onNavigateToDebugConsole = onNavigateToDebugConsole,
                         onDisconnect = { viewModel.onEvent(BluetoothEvent.Disconnect) }
                     )
@@ -758,6 +760,7 @@ private fun ConnectedContent(
     onNavigateToFreezeFrame: () -> Unit = {},
     onNavigateToDTC: () -> Unit,
     onNavigateToVehicleInfo: () -> Unit,
+    onNavigateToDtcLookup: () -> Unit = {},
     onNavigateToDebugConsole: () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -788,7 +791,10 @@ private fun ConnectedContent(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+    ) {
         // Connection status banner
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -900,6 +906,15 @@ private fun ConnectedContent(
             description = "VIN, calibration IDs, CVN, and ECU identification data",
             icon = Icons.Default.DirectionsCar,
             onClick = onNavigateToVehicleInfo
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        FeatureCard(
+            title = "DTC Lookup",
+            description = "Browse and search DTC code definitions offline",
+            icon = Icons.Default.Search,
+            onClick = onNavigateToDtcLookup
         )
 
         if (debugLoggingEnabled) {

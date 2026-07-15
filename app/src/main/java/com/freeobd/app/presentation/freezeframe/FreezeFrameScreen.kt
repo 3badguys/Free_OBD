@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeobd.app.presentation.components.DetailCard
+import com.freeobd.app.presentation.components.PidDetailDialog
 import com.freeobd.app.presentation.components.SupportBlockGrid
 import com.freeobd.app.presentation.components.SupportLegend
 import com.freeobd.app.presentation.theme.*
@@ -34,6 +35,7 @@ fun FreezeFrameScreen(
     viewModel: FreezeFrameViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedPidMetadata by viewModel.selectedPidMetadata.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
@@ -117,6 +119,14 @@ fun FreezeFrameScreen(
                 else -> FreezeFrameContent(uiState, listState, ffSegments, viewModel)
             }
         }
+    }
+
+    // PID detail dialog
+    if (selectedPidMetadata != null) {
+        PidDetailDialog(
+            metadata = selectedPidMetadata!!,
+            onDismiss = { viewModel.dismissPidDetail() }
+        )
     }
 }
 
@@ -255,7 +265,8 @@ private fun FreezeFrameContent(
                 isSupported = ps.isSupported,
                 isLoading = ps.result is FreezeFramePidResult.Loading,
                 resultText = (ps.result as? FreezeFramePidResult.Success)?.data,
-                errorText = (ps.result as? FreezeFramePidResult.Error)?.message
+                errorText = (ps.result as? FreezeFramePidResult.Error)?.message,
+                onClick = { viewModel.onEvent(FreezeFrameEvent.ShowPidDetail(ps.pidId)) }
             )
         }
 

@@ -55,4 +55,6 @@ sealed interface FreezeFrameEvent {
     data object NextFrame : FreezeFrameEvent
     /** Scroll the detail list to a specific PID. */
     data class ScrollToPid(val pidId: Int) : FreezeFrameEvent
+    /** Show PID metadata detail dialog. */
+    data class ShowPidDetail(val pidId: Int) : FreezeFrameEvent
 }

@@ -3,6 +3,7 @@ package com.freeobd.app.presentation.livedata
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeobd.app.data.local.AppDatabase
+import com.freeobd.app.data.local.entity.PidMetadataEntity
 import com.freeobd.app.data.mock.DemoModeState
 import com.freeobd.app.data.remote.NegativeResponseException
 import com.freeobd.app.domain.model.LiveDataDiscovery
@@ -22,7 +23,10 @@ class LiveDataViewModel(
     private val _uiState = MutableStateFlow(LiveDataUiState())
     val uiState: StateFlow<LiveDataUiState> = _uiState.asStateFlow()
 
-    private var pidNames: Map<Int, String> = emptyMap()
+    private var pidMetadata: Map<Int, PidMetadataEntity> = emptyMap()
+
+    private val _selectedPidMetadata = MutableStateFlow<PidMetadataEntity?>(null)
+    val selectedPidMetadata: StateFlow<PidMetadataEntity?> = _selectedPidMetadata.asStateFlow()
 
     fun onEvent(event: LiveDataEvent) {
         when (event) {
@@ -34,7 +38,14 @@ class LiveDataViewModel(
             is LiveDataEvent.ScrollToPid -> {
                 _uiState.value = _uiState.value.copy(scrollToPid = event.pidId)
             }
+            is LiveDataEvent.ShowPidDetail -> {
+                _selectedPidMetadata.value = pidMetadata[event.pidId]
+            }
         }
+    }
+
+    fun dismissPidDetail() {
+        _selectedPidMetadata.value = null
     }
 
     fun onScrollConsumed() {
@@ -43,8 +54,8 @@ class LiveDataViewModel(
 
     private fun load() {
         viewModelScope.launch {
-            if (pidNames.isEmpty()) {
-                pidNames = database.pidMetadataDao().getByMode(0x01).associate { it.pidId to it.description }
+            if (pidMetadata.isEmpty()) {
+                pidMetadata = database.pidMetadataDao().getByMode(0x01).associate { it.pidId to it }
             }
 
             val segment = _uiState.value.segment
@@ -62,7 +73,7 @@ class LiveDataViewModel(
         val errorHex = (error as? NegativeResponseException)?.toHexString() ?: "ERR"
         val states = (1..32).map { offset ->
             val pidId = segment + offset
-            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            val desc = pidMetadata[pidId]?.description ?: String.format("PID 0x%02X", pidId)
             LiveDataPidState(pidId = pidId, description = desc, isSupported = false,
                 result = LiveDataPidResult.Error("Segment not available"))
         }
@@ -76,7 +87,7 @@ class LiveDataViewModel(
         val segment = _uiState.value.segment
         val states = (1..32).map { offset ->
             val pidId = segment + offset
-            val desc = pidNames[pidId] ?: String.format("PID 0x%02X", pidId)
+            val desc = pidMetadata[pidId]?.description ?: String.format("PID 0x%02X", pidId)
             LiveDataPidState(pidId = pidId, description = desc, isSupported = pidId in discovery.supportedPids)
         }
 
