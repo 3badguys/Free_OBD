@@ -35,7 +35,7 @@ class MultiFrameHandler {
      * @return Reassembled ASCII bytes with per-frame OBD headers, or null if
      *         no First Frame was detected.
      */
-    fun reassembleMultiFrame(rawBytes: ByteArray, command: String): ByteArray? {
+    fun reassembleMultiFrame(rawBytes: ByteArray, command: String, concat: Boolean = false): ByteArray? {
         val out = ByteArray(rawBytes.size + 256)
         var outPos = 0
         var foundFF = false
@@ -68,16 +68,17 @@ class MultiFrameHandler {
                 rawBytes.copyInto(out, outPos, dataStart, lineEnd)
                 outPos += len
             } else {
-                outPos = writeHeader(out, outPos, mode, cmdTail, frameNum)
+                if (!concat) outPos = writeHeader(out, outPos, mode, cmdTail, frameNum)
                 val len = lineEnd - dataStart
                 rawBytes.copyInto(out, outPos, dataStart, lineEnd)
                 outPos += len
             }
-            out[outPos++] = CR
+            if (!concat) out[outPos++] = CR
             pos = lineEnd + 1
         }
 
         if (!foundFF) return null
+        if (concat) out[outPos++] = CR
         return out.copyOf(outPos)
     }
 

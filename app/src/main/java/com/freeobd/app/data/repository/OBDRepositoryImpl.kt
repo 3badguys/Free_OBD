@@ -286,14 +286,20 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
 
             when (infoType) {
-                // VIN — single record, joined without separator.
+                // VIN & IUPR — continuous data, concatenated into one payload.
                 0x02 -> {
-                    extractPerFramePayloads(rawBytes, command)
-                        .joinToString("") { formatSingleRecord(infoType, it) }
-                        .ifBlank { "—" }
+                    extractPerFramePayloads(rawBytes, command, concat = true)
+                        .firstOrNull()
+                        ?.let { formatSingleRecord(infoType, it) } ?: "—"
+                }
+                // IUPR — headerBytes=2 to keep the leading data byte.
+                0x08 -> {
+                    extractPerFramePayloads(rawBytes, command, concat = true, headerBytes = 2)
+                        .firstOrNull()
+                        ?.let { formatSingleRecord(infoType, it) } ?: "—"
                 }
                 // Multi-record types — each record on its own line.
-                0x04, 0x06, 0x08, 0x0A -> {
+                0x04, 0x06, 0x0A -> {
                     extractPerFramePayloads(rawBytes, command)
                         .joinToString("\n") { formatSingleRecord(infoType, it) }
                         .ifBlank { "—" }
@@ -317,8 +323,8 @@ class OBDRepositoryImpl(
         return when (infoType) {
             0x02, 0x04, 0x0A -> // VIN / Calibration ID / ECU Name — ASCII
                 String(trimmed, Charsets.US_ASCII).trimEnd(' ', ' ')
-            0x08 -> // IUPR — monitor structure
-                formatIuprResult(trimmed)
+            0x08 -> // IUPR — monitor structure (binary data, don't trim)
+                formatIuprResult(payload)
             0x06 -> // CVN — hex
                 trimmed.joinToString("") { String.format("%02X", it) }
             else -> trimmed.joinToString(" ") { "%02X".format(it) }
@@ -394,9 +400,9 @@ class OBDRepositoryImpl(
      * CAN + ATH1 multi-frame responses are transparently reassembled first.
      * Each line: mode + InfoType + record index (3 bytes) are stripped.
      */
-    private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null): List<ByteArray> {
-        val data = reassembleMultiFrameIfNeeded(rawBytes, command)
-        val result = extractPerFrameRaw(data, headerBytes = 3, command = command)
+    private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null, concat: Boolean = false, headerBytes: Int = 3): List<ByteArray> {
+        val data = reassembleMultiFrameIfNeeded(rawBytes, command, concat)
+        val result = extractPerFrameRaw(data, headerBytes = headerBytes, command = command)
         val label = if (data !== rawBytes) "→ reassembled" else "raw"
         android.util.Log.d("MultiFrame", "$command $label")
         android.util.Log.d("MultiFrame", "  in:  ${String(rawBytes, Charsets.US_ASCII)}")
@@ -411,9 +417,9 @@ class OBDRepositoryImpl(
      * Reassemble ISO 15765-2 multi-frame responses when using CAN with ATH1.
      * Returns the original bytes unchanged when reassembly is not applicable.
      */
-    private fun reassembleMultiFrameIfNeeded(rawBytes: ByteArray, command: String?): ByteArray {
+    private fun reassembleMultiFrameIfNeeded(rawBytes: ByteArray, command: String?, concat: Boolean = false): ByteArray {
         if (command == null || isNonCanProtocol() || !showResponseHeaders) return rawBytes
-        return multiFrameHandler.reassembleMultiFrame(rawBytes, command) ?: rawBytes
+        return multiFrameHandler.reassembleMultiFrame(rawBytes, command, concat) ?: rawBytes
     }
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
