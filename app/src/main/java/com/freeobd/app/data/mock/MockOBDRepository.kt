@@ -298,6 +298,9 @@ class MockOBDRepository(
                 ), pidId = pidId)
             }
             0x03 -> OBDData.RawBytes(bytes = byteArrayOf(0x02.toByte(), 0x00.toByte()), pidId = pidId)
+            0x13 -> OBDData.RawBytes(bytes = byteArrayOf(0x33.toByte()), pidId = pidId) // B1S1 B1S2 B2S1 B2S2
+            0x14 -> OBDData.RawBytes(bytes = byteArrayOf(0x99.toByte(), 0x80.toByte()), pidId = pidId) // ~0.765V STFT:0%
+            0x15 -> OBDData.RawBytes(bytes = byteArrayOf(0x80.toByte(), 0xFF.toByte()), pidId = pidId) // ~0.640V no STFT
             0x1C -> OBDData.Numeric(0x05.toDouble(), "", pidId)  // OBD-II compliant
             // 1-byte PIDs — percentage type
             0x04 -> OBDData.Numeric(engineLoad, "%", pidId)
