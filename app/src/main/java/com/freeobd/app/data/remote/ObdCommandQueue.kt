@@ -108,7 +108,9 @@ class ObdCommandQueue(
 
                     if (shouldLog) {
                         val rxText = String(result, Charsets.US_ASCII)
-                            .replace("\r", "").replace("\n", " ").trim()
+                            .replace(">", "")
+                            .replace("\r", "\n")
+                            .trim()
                         DebugLogger.rx(rxText)
                     }
 

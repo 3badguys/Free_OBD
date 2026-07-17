@@ -89,7 +89,7 @@ class MultiFrameHandler {
             if (i >= end) break
             val c = data[i]
             if ((c == B_1 || c == B_2) && i + 1 < end && isHex(data[i + 1])) return i
-            i += 2
+            i++
         }
         return -1
     }
@@ -101,19 +101,14 @@ class MultiFrameHandler {
         return minOf(i, end)
     }
 
-    /** Write "XX YY NN " (mode + cmdTail + frameNum) into the output buffer. */
+    /** Write "XXYYNN" (mode + cmdTail + frameNum) into the output buffer. */
     private fun writeHeader(out: ByteArray, pos: Int, mode: Int, cmdTail: String, frameNum: Int): Int {
         var p = pos
         writeHexByte(out, p, mode); p += 2
-        out[p++] = SP
         out[p++] = cmdTail[0].code.toByte()
         out[p++] = cmdTail[1].code.toByte()
-        out[p++] = SP
-        val hi = HEX[(frameNum shr 4) and 0x0F]
-        val lo = HEX[frameNum and 0x0F]
-        out[p++] = hi
-        out[p++] = lo
-        out[p++] = SP
+        out[p++] = HEX[(frameNum shr 4) and 0x0F]
+        out[p++] = HEX[frameNum and 0x0F]
         return p
     }
 

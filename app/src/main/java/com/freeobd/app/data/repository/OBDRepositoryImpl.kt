@@ -396,7 +396,15 @@ class OBDRepositoryImpl(
      */
     private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null): List<ByteArray> {
         val data = reassembleMultiFrameIfNeeded(rawBytes, command)
-        return extractPerFrameRaw(data, headerBytes = 3, command = command)
+        val result = extractPerFrameRaw(data, headerBytes = 3, command = command)
+        val label = if (data !== rawBytes) "→ reassembled" else "raw"
+        android.util.Log.d("MultiFrame", "$command $label")
+        android.util.Log.d("MultiFrame", "  in:  ${String(rawBytes, Charsets.US_ASCII)}")
+        if (data !== rawBytes) android.util.Log.d("MultiFrame", "  out: ${String(data, Charsets.US_ASCII)}")
+        result.forEachIndexed { i, p ->
+            android.util.Log.d("MultiFrame", "  frame[$i]: ${p.joinToString(" ") { "%02X".format(it) }}")
+        }
+        return result
     }
 
     /**
