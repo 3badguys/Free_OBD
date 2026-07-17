@@ -184,7 +184,7 @@ CAN     响应: 42 02 00 01 70 3B
 
 ---
 
-### Mode 09 InfoType 04/06/0A：多帧 vs 单帧
+### Mode 09：多帧 vs 单帧
 
 #### 多帧响应
 
@@ -203,6 +203,45 @@ ECU 用多条 CAN 帧返回多个记录，每帧带自己的记录索引：
 ```
 
 处理方式：`extractPerFramePayloads` 逐帧提取 payload → `formatSingleRecord` 格式化 → `joinToString("\n")` 拼接显示。
+
+##### CAN + ATH1 多帧重组
+
+当启用 ATH1（CAN 响应头显示）时，ELM327 将 ISO 15765-2 多帧响应逐帧输出为独立 ASCII 行：
+
+```
+0904 多帧 ATH1 响应（1 条记录）：
+7E8 10 13 49 04 01 33 33 33 39    ← FF (PCI=10, len=0x13)
+7E8 21 32 30 2D 36 32 4C 36       ← CF (PCI=21, seq=1)
+7E8 22 2A 30 30 30 30 31 00       ← CF (PCI=22, seq=2)
+```
+
+CF 行不含 OBD 响应头 `49 04`，原有的 `extractPerFrameRaw` 会将其整行丢弃。`MultiFrameHandler.reassembleMultiFrame` 在 ASCII 层面完成重组：
+
+1. 逐行扫描 PCI token（高 4 位 = `1` 为 FF，= `2` 为 CF），不依赖固定偏移
+2. 剥离 CAN ID + PCI 头，取数据 hex token
+3. CF 行换为 OBD 响应头 + 帧序号（`49 04 01`, `49 04 02`, ...）
+4. FF 行保留原有 OBD 头
+
+```
+重组后（`\r` 分隔）：
+49 04 01 33 33 33 39          ← FF 行，原有 OBD 头保留
+49 04 02 32 30 2D 36 32 4C 36  ← CF 行，换上 49 04 02 头
+49 04 03 2A 30 30 30 30 31 00  ← CF 行，换上 49 04 03 头
+```
+
+重组后每行都是标准的 OBD 响应行，`extractPerFrameRaw(headerBytes=3)` 可正常提取各帧 payload。
+
+**触发条件**：CAN 协议（ATDPN = 6–A）+ ATH1（`showResponseHeaders = true`，默认开启）。
+
+**影响的 InfoType**：`0902`（VIN）、`0904`（Calibration ID）、`0906`（CVN）、`0908`（IUPR）、`090A`（ECU Name）。
+
+##### ISO 15765-2 PCI 帧格式
+
+| PCI byte 高 4 位 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `0x1` | First Frame (FF) | 低 4 位 + 下一字节 = 总数据长度（12 位） |
+| `0x2` | Consecutive Frame (CF) | 低 4 位 = 序列号（0–15，轮转） |
+| `0x3` | Flow Control (FC) | 接收方发送，控制传输速率 |
 
 #### 单帧响应（SAE J1979 标准格式）
 

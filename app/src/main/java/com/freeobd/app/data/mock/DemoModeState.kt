@@ -17,7 +17,7 @@ object DemoModeState {
         private set
 
     @Volatile
-    var showResponseHeaders: Boolean = false
+    var showResponseHeaders: Boolean = true
 
     @Volatile
     private var mockObdRepository: MockOBDRepository? = null

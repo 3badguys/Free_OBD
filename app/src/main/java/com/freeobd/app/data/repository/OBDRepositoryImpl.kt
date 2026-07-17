@@ -29,6 +29,7 @@ class OBDRepositoryImpl(
     private val multiFrameHandler = MultiFrameHandler()
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var initProtocol: String = "ATSP0"
+    private var showResponseHeaders: Boolean = false
     /** Lazy access to the command queue, creating it if needed. */
     private fun requireQueue(): ObdCommandQueue {
         val existing = commandQueue
@@ -46,6 +47,7 @@ class OBDRepositoryImpl(
     ): Result<Unit> {
         return runCatching {
             initProtocol = protocol
+            this.showResponseHeaders = showResponseHeaders
             commandQueue = null
             val queue = requireQueue()
             queue.initialize()
@@ -284,12 +286,16 @@ class OBDRepositoryImpl(
             val rawBytes = requireQueue().sendObdCommand(command).getOrThrow()
 
             when (infoType) {
-                // Multi-record types: each frame is an independent record.
-                // Multi-frame → each payload is a complete record.
-                // Single-frame → SAE J1979 [count][padded records] format.
-                0x04, 0x06, 0x0A -> {
+                // VIN — single record, joined without separator.
+                0x02 -> {
                     extractPerFramePayloads(rawBytes, command)
-                        .joinToString("\n") { r -> formatSingleRecord(infoType, r) }
+                        .joinToString("") { formatSingleRecord(infoType, it) }
+                        .ifBlank { "—" }
+                }
+                // Multi-record types — each record on its own line.
+                0x04, 0x06, 0x08, 0x0A -> {
+                    extractPerFramePayloads(rawBytes, command)
+                        .joinToString("\n") { formatSingleRecord(infoType, it) }
                         .ifBlank { "—" }
                 }
                 0x01, 0x03, 0x05, 0x09 -> {
@@ -305,18 +311,49 @@ class OBDRepositoryImpl(
         }
     }
 
-    /** Format a single record payload from a Mode 09 multi-record response. */
+    /** Format a single record payload from a Mode 09 response. */
     private fun formatSingleRecord(infoType: Int, payload: ByteArray): String {
-        // Strip trailing padding/filler bytes (e.g. A6, 95, AD, 99) that some
-        // ECUs append after the data payload in each CAN frame.
         val trimmed = payload.trimTrailingNonPrintable()
         return when (infoType) {
-            0x04, 0x0A -> // Calibration ID / ECU Name — ASCII
+            0x02, 0x04, 0x0A -> // VIN / Calibration ID / ECU Name — ASCII
                 String(trimmed, Charsets.US_ASCII).trimEnd(' ', ' ')
+            0x08 -> // IUPR — monitor structure
+                formatIuprResult(trimmed)
             0x06 -> // CVN — hex
                 trimmed.joinToString("") { String.format("%02X", it) }
             else -> trimmed.joinToString(" ") { "%02X".format(it) }
         }
+    }
+
+    /**
+     * Format an IUPR (In-Use Performance Ratio) payload per SAE J1979.
+     * Each monitor entry is 4 bytes: [ignitionCycles_MSB, ignitionCycles_LSB, numerator, denominator].
+     */
+    private fun formatIuprResult(data: ByteArray): String {
+        if (data.isEmpty()) return "—"
+        val monitorSize = 4
+        if (data.size < monitorSize) {
+            return data.joinToString(" ") { String.format("%02X", it) }
+        }
+        val sb = StringBuilder()
+        for (i in data.indices step monitorSize) {
+            if (i + monitorSize > data.size) break
+            val cycles = ((data[i].toInt() and 0xFF) shl 8) or (data[i + 1].toInt() and 0xFF)
+            val numerator = data[i + 2].toInt() and 0xFF
+            val denominator = data[i + 3].toInt() and 0xFF
+            if (sb.isNotEmpty()) sb.append("\n")
+            sb.append("Monitor ${(i / monitorSize) + 1}: ")
+            if (denominator > 0) {
+                val ratio = numerator * 100.0 / denominator
+                sb.append("${"%.1f".format(ratio)}% ($numerator/$denominator)")
+            } else {
+                sb.append("numerator=$numerator denom=0")
+            }
+            if (cycles > 0) {
+                sb.append("  [$cycles ignition cycle(s)]")
+            }
+        }
+        return sb.toString().ifBlank { "—" }
     }
 
     /** Remove trailing bytes that fall outside the printable ASCII range (0x20–0x7E). */
@@ -353,12 +390,23 @@ class OBDRepositoryImpl(
         String(this, Charsets.US_ASCII).replace(">", "").replace("\r", " ").trim()
 
     /**
-     * Extract per-frame data payloads from a multi-frame Mode 09 response.
-     * Each line is a separate CAN frame; mode + InfoType + record index (3 bytes)
-     * are stripped from each.
+     * Extract per-frame data payloads from a Mode 09 response.
+     * CAN + ATH1 multi-frame responses are transparently reassembled first.
+     * Each line: mode + InfoType + record index (3 bytes) are stripped.
      */
-    private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null): List<ByteArray> =
-        extractPerFrameRaw(rawBytes, headerBytes = 3, command = command)
+    private fun extractPerFramePayloads(rawBytes: ByteArray, command: String? = null): List<ByteArray> {
+        val data = reassembleMultiFrameIfNeeded(rawBytes, command)
+        return extractPerFrameRaw(data, headerBytes = 3, command = command)
+    }
+
+    /**
+     * Reassemble ISO 15765-2 multi-frame responses when using CAN with ATH1.
+     * Returns the original bytes unchanged when reassembly is not applicable.
+     */
+    private fun reassembleMultiFrameIfNeeded(rawBytes: ByteArray, command: String?): ByteArray {
+        if (command == null || isNonCanProtocol() || !showResponseHeaders) return rawBytes
+        return multiFrameHandler.reassembleMultiFrame(rawBytes, command) ?: rawBytes
+    }
 
     // ── Mode 0A: Permanent DTCs ────────────────────────────
     override suspend fun readPermanentDTCs(): Result<List<DTC>> =

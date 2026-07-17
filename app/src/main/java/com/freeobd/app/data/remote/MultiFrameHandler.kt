@@ -1,168 +1,142 @@
 package com.freeobd.app.data.remote
 
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-
 /**
  * Handles ISO 15765-2 multi-frame response reassembly for OBD-II data.
  *
- * Used primarily for long responses like VIN (17+ characters), which may be split
- * across multiple CAN frames due to the 8-byte CAN frame payload limit.
+ * Under CAN + ATH1, the ELM327 outputs each frame (FF, CF) as a separate
+ * ASCII line.  CF lines lack the OBD response header (e.g. "49 02"),
+ * causing [extractPerFrameRaw] to skip them.
  *
- * ISO 15765-2 Multi-Frame Flow:
+ * [reassembleMultiFrame] operates entirely on ASCII bytes: it strips
+ * the CAN ID and PCI header from each line and re-heads CF lines with
+ * the OBD response header + frame sequence number so downstream
+ * extraction works unchanged.
  *
- * 1. Sender sends a First Frame (FF):
- *    - PCI byte high nibble = 0x1 (First Frame indicator)
- *    - PCI byte low nibble + next byte = total data length (12 bits)
- *    - Remaining bytes in the frame = first chunk of data
- *
- * 2. Receiver sends a Flow Control Frame (FC):
- *    - PCI byte = 0x30 (Continue To Send)
- *    - Block size (how many Consecutive Frames before next FC)
- *    - Separation time (minimum delay between CFs in ms)
- *
- * 3. Sender sends Consecutive Frames (CF):
- *    - PCI byte high nibble = 0x2 (Consecutive Frame indicator)
- *    - PCI byte low nibble = sequence number (0-15, wrapping)
- *    - Remaining bytes = next chunk of data
- *
- * This handler manages the reassembly buffer and flow control handshake.
+ * ISO 15765-2 PCI (Protocol Control Information):
+ *   - First Frame  (FF): PCI high nibble = 0x1, low nibble + next byte = total length
+ *   - Consecutive Frame (CF): PCI high nibble = 0x2, low nibble = sequence number
+ *   - Flow Control  (FC): PCI = 0x30
  */
 class MultiFrameHandler {
 
-    /** Maximum number of bytes to buffer for a single multi-frame response. */
-    private val maxBufferSize = 4096
-
-    /** Buffer for accumulating frame data. */
-    private val reassemblyBuffer = mutableListOf<Byte>()
-
-    /** Expected total data length from the First Frame. */
-    private var expectedLength: Int = 0
-
-    /** Current frame sequence number for validation. */
-    private var expectedSequenceNumber: Int = 0
-
-    /** Whether a multi-frame transfer is currently in progress. */
-    private var transferInProgress: Boolean = false
-
     /**
-     * Process a frame that may be part of a multi-frame response.
+     * Reassemble an ISO 15765-2 multi-frame ELM327 ASCII response (ATH1 mode).
      *
-     * @param frameData The raw frame payload bytes (including PCI byte).
-     * @return The reassembled complete data if this frame completes the transfer,
-     *         or null if more frames are expected.
+     * Example (0904 Calibration ID):
+     *   Input:  7E8 10 13 49 04 01 33 33 33 39\r
+     *           7E8 21 32 30 2D 36 32 4C 36\r
+     *           7E8 22 2A 30 30 30 30 31 00\r
+     *   Output: 49 04 01 33 33 33 39\r
+     *           49 04 02 32 30 2D 36 32 4C 36\r
+     *           49 04 03 2A 30 30 30 30 31 00\r
+     *
+     * @param rawBytes  The raw ELM327 ASCII response (space-separated hex).
+     * @param command   Original OBD command hex (e.g. "0904").
+     * @return Reassembled ASCII bytes with per-frame OBD headers, or null if
+     *         no First Frame was detected.
      */
-    fun processFrame(frameData: ByteArray): ByteArray? {
-        if (frameData.isEmpty()) return null
+    fun reassembleMultiFrame(rawBytes: ByteArray, command: String): ByteArray? {
+        val out = ByteArray(rawBytes.size + 256)
+        var outPos = 0
+        var foundFF = false
+        var frameNum = 0
 
-        val pci = frameData[0].toInt() and 0xFF
-        val pciType = (pci shr 4) and 0x0F
+        // Pre-compute response header: e.g. command "0904" → mode=0x49, tail="04"
+        val mode = command.substring(0, 2).toInt(16) + 0x40
+        val cmdTail = command.substring(2)
 
-        return when (pciType) {
-            PCI_TYPE_SINGLE_FRAME -> {
-                // Single frame — no reassembly needed
-                // PCI byte low nibble = data length
-                val dataLength = pci and 0x0F
-                if (dataLength <= frameData.size - 1) {
-                    frameData.copyOfRange(1, 1 + dataLength)
-                } else {
-                    frameData.copyOfRange(1, frameData.size)
-                }
+        var pos = 0
+        while (pos < rawBytes.size) {
+            var lineEnd = pos
+            while (lineEnd < rawBytes.size && rawBytes[lineEnd] != CR && rawBytes[lineEnd] != LF) lineEnd++
+            if (lineEnd == pos) { pos = lineEnd + 1; continue }
+
+            val pciStart = findPciToken(rawBytes, pos, lineEnd)
+            if (pciStart < 0) { pos = lineEnd + 1; continue }
+
+            val isFF = rawBytes[pciStart] == B_1
+            if (isFF) foundFF = true
+
+            var dataStart = skipHexToken(rawBytes, pciStart, lineEnd)
+            if (isFF) dataStart = skipHexToken(rawBytes, dataStart, lineEnd)
+            if (dataStart >= lineEnd) { pos = lineEnd + 1; continue }
+
+            frameNum++
+
+            if (isFF) {
+                val len = lineEnd - dataStart
+                rawBytes.copyInto(out, outPos, dataStart, lineEnd)
+                outPos += len
+            } else {
+                outPos = writeHeader(out, outPos, mode, cmdTail, frameNum)
+                val len = lineEnd - dataStart
+                rawBytes.copyInto(out, outPos, dataStart, lineEnd)
+                outPos += len
             }
-
-            PCI_TYPE_FIRST_FRAME -> {
-                // First Frame — start new reassembly
-                val lengthHigh = pci and 0x0F
-                val lengthLow = frameData[1].toInt() and 0xFF
-                expectedLength = (lengthHigh shl 8) or lengthLow
-                expectedSequenceNumber = 1 // CFs start at sequence 1
-                transferInProgress = true
-                reassemblyBuffer.clear()
-
-                // Append data from the FF (bytes after the 2-byte header)
-                reassemblyBuffer.addAll(frameData.drop(2).toList())
-
-                // Return null — awaiting Consecutive Frames
-                null
-            }
-
-            PCI_TYPE_CONSECUTIVE_FRAME -> {
-                // Consecutive Frame — append data
-                if (!transferInProgress) return null
-
-                val sequenceNumber = pci and 0x0F
-                if (sequenceNumber != expectedSequenceNumber) {
-                    // Sequence mismatch — transfer corrupted, abort
-                    android.util.Log.w(TAG,
-                        "CF sequence mismatch: expected $expectedSequenceNumber, got $sequenceNumber")
-                    abort()
-                    return null
-                }
-
-                expectedSequenceNumber = (expectedSequenceNumber + 1) % 16
-                reassemblyBuffer.addAll(frameData.drop(1).toList())
-
-                // Check if transfer is complete
-                if (reassemblyBuffer.size >= expectedLength) {
-                    val complete = reassemblyBuffer.take(expectedLength).toByteArray()
-                    abort() // Reset state
-                    return complete
-                }
-
-                null // More frames expected
-            }
-
-            PCI_TYPE_FLOW_CONTROL -> {
-                // We sent a flow control frame — this is the sender's response to it
-                // Not directly used in data processing
-                null
-            }
-
-            else -> {
-                android.util.Log.w(TAG, "Unknown PCI type: $pciType")
-                null
-            }
+            out[outPos++] = CR
+            pos = lineEnd + 1
         }
+
+        if (!foundFF) return null
+        return out.copyOf(outPos)
     }
 
-    /**
-     * Create a Flow Control frame to request the sender to continue sending.
-     *
-     * @param blockSize Number of Consecutive Frames to accept before the next FC frame.
-     * @param separationTimeMs Minimum separation time between CFs in milliseconds.
-     * @return The FC frame bytes ready to be sent.
-     */
-    fun createFlowControlFrame(
-        blockSize: Int = 0, // 0 = send all remaining frames
-        separationTimeMs: Int = 10
-    ): ByteArray {
-        return byteArrayOf(
-            (PCI_TYPE_FLOW_CONTROL shl 4).toByte(), // PCI byte: FC type + 0
-            blockSize.toByte(),
-            separationTimeMs.toByte()
-        )
+    /** Scan a line for the PCI hex token (first token starting with '1' or '2'). */
+    private fun findPciToken(data: ByteArray, start: Int, end: Int): Int {
+        var i = start
+        while (i < end) {
+            while (i < end && data[i] == SP) i++
+            if (i >= end) break
+            val c = data[i]
+            if ((c == B_1 || c == B_2) && i + 1 < end && isHex(data[i + 1])) return i
+            i += 2
+        }
+        return -1
     }
 
-    /** Reset the reassembly state and clear the buffer. */
-    private fun abort() {
-        reassemblyBuffer.clear()
-        expectedLength = 0
-        expectedSequenceNumber = 0
-        transferInProgress = false
+    /** Advance past the current 2-char hex token and trailing spaces. */
+    private fun skipHexToken(data: ByteArray, pos: Int, end: Int): Int {
+        var i = pos + 2
+        while (i < end && data[i] == SP) i++
+        return minOf(i, end)
     }
 
-    /** Check if a multi-frame transfer is currently active. */
-    val isTransferActive: Boolean get() = transferInProgress
+    /** Write "XX YY NN " (mode + cmdTail + frameNum) into the output buffer. */
+    private fun writeHeader(out: ByteArray, pos: Int, mode: Int, cmdTail: String, frameNum: Int): Int {
+        var p = pos
+        writeHexByte(out, p, mode); p += 2
+        out[p++] = SP
+        out[p++] = cmdTail[0].code.toByte()
+        out[p++] = cmdTail[1].code.toByte()
+        out[p++] = SP
+        val hi = HEX[(frameNum shr 4) and 0x0F]
+        val lo = HEX[frameNum and 0x0F]
+        out[p++] = hi
+        out[p++] = lo
+        out[p++] = SP
+        return p
+    }
+
+    private fun writeHexByte(out: ByteArray, pos: Int, b: Int) {
+        out[pos] = HEX[(b shr 4) and 0x0F]
+        out[pos + 1] = HEX[b and 0x0F]
+    }
+
+    private fun isHex(b: Byte): Boolean =
+        (b in B_0..B_9) || (b in B_A..B_F) || (b in B_a..B_f)
 
     companion object {
-        private const val TAG = "MultiFrameHandler"
-
-        // PCI (Protocol Control Information) type identifiers
-        private const val PCI_TYPE_SINGLE_FRAME = 0x0
-        private const val PCI_TYPE_FIRST_FRAME = 0x1
-        private const val PCI_TYPE_CONSECUTIVE_FRAME = 0x2
-        private const val PCI_TYPE_FLOW_CONTROL = 0x3
+        private const val CR: Byte = 0x0D
+        private const val LF: Byte = 0x0A
+        private const val SP: Byte = 0x20
+        private const val B_0: Byte = 0x30
+        private const val B_9: Byte = 0x39
+        private const val B_1: Byte = 0x31
+        private const val B_2: Byte = 0x32
+        private const val B_A: Byte = 0x41
+        private const val B_F: Byte = 0x46
+        private const val B_a: Byte = 0x61
+        private const val B_f: Byte = 0x66
+        private val HEX = "0123456789ABCDEF".toByteArray()
     }
 }

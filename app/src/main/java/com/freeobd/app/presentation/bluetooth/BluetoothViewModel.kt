@@ -52,7 +52,7 @@ class BluetoothViewModel(
     var protocolDisplay by mutableStateOf("ATSP0 (Auto)")
     var selectedTransport by mutableStateOf("SPP")
     var ecuAddress by mutableStateOf("")
-    var showResponseHeaders by mutableStateOf(false)
+    var showResponseHeaders by mutableStateOf(true)
     // Use map keyed by address to deduplicate — data class equals/hashCode includes
     // all fields (including rssi), so a Set can't guarantee uniqueness by address alone.
     private val discoveredDevices = linkedMapOf<String, BluetoothDeviceInfo>()
