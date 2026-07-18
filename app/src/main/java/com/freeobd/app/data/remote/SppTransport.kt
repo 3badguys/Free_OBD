@@ -115,7 +115,7 @@ class SppTransport : ObdTransport {
             } ?: return null // socket creation timed out
 
             val connected = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
-                sock!!.connect()
+                sock.connect()
             }
 
             if (connected == null) { // connect() timed out
@@ -143,7 +143,7 @@ class SppTransport : ObdTransport {
             } ?: return null // socket creation timed out
 
             val connected = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
-                sock!!.connect()
+                sock.connect()
             }
 
             if (connected == null) { // connect() timed out
