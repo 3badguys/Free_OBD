@@ -1,136 +1,140 @@
-# Free OBD — 开源 Android OBD-II 汽车诊断应用
+# Free OBD — Open-Source Android OBD-II Vehicle Diagnostic App
+
+**[English](README.md)** | [中文](README.zh-CN.md)
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 <div align="center">
 
 🚗🔧📊
 
-*一款基于 Kotlin + Jetpack Compose 的专业级 OBD-II 汽车诊断工具*
+*A professional-grade OBD-II vehicle diagnostic tool built with Kotlin + Jetpack Compose*
 
 </div>
 
 ---
 
-## 📋 项目简介
+## 📋 Overview
 
-Free OBD 是一款功能完善的 Android OBD-II 诊断应用，支持通过蓝牙（经典 SPP + BLE）连接 ELM327 适配器，读取车辆实时数据、诊断故障码（DTC）、冻结帧数据和车辆信息。
+Free OBD is a full-featured Android OBD-II diagnostic app that connects to ELM327 adapters via Bluetooth (Classic SPP + BLE) to read real-time vehicle data, diagnostic trouble codes (DTCs), freeze frame data, and vehicle information.
 
-**内置 Demo 模式**，无需任何硬件即可体验全部功能。
+**Built-in Demo mode** — experience all features without any hardware.
 
-### ✨ 核心功能
+### ✨ Core Features
 
-| 功能 | 说明 |
+| Feature | Description |
 | :--- | :--- |
-| **🎮 Demo 模式** | 内置模拟数据引擎，无需 OBD 适配器即可完整体验所有功能 |
-| **蓝牙设备扫描** | 同时扫描经典蓝牙（SPP）和低功耗蓝牙（BLE）OBD 适配器 |
-| **协议自动/手动选择** | 支持 ELM327 全部 13 种协议：CAN、K 线（ISO 9141-2 / KWP2000）、J1850 PWM/VPW、J1939 等 |
-| **K 线支持** | 摩托车 ECU 适配 — 自动 5-baud / fast init |
-| **加密握手 (AT+SETCRYPT)** | 自动识别并从 AT+VERSION 提取挑战值并计算密钥 |
-| **电压检测** | ATRV 读取电压，低电压时弹窗警告 |
-| **适配器固件信息** | ATI 版本号显示在 Connected 卡片上 |
-| **ECU 地址配置** | 支持广播地址（0x7DF）和特定 ECU 地址 |
-| **PID 位图发现** | Mode 01/02/09 三位图逐段查询，支持方块可视化 + 点击跳转 |
-| **实时仪表盘** | Canvas 仪表盘（渐变弧线 + 指针阴影），最多 6 个，自动轮询 |
-| **Live Data Explorer** | 按段浏览全部 Mode 01 PID 及其实时数值 |
-| **冻结帧数据** | Mode 02 位图发现 + 逐 PID 拉取，支持多帧前后切换 |
-| **故障码读取/清除** | Mode 03/07/0A 三标签页，清码 Mode 04 需确认对话框 |
-| **故障码详情** | 内置 SAE J2012 故障码数据库（从预置 dtc_codes.db 加载） |
-| **DTC 离线查询** | 故障码参考页面 — 分页浏览、搜索、每页条数可选、页码跳转 |
-| **PID 详情弹窗** | 点击任意 PID 卡片弹出完整元数据（描述、单位、范围、公式），三个 Explorer 页面统一复用 |
-| **车辆信息** | Mode 09 位图发现 + 逐项拉取 VIN、校准 ID、CVN、ECU 名称 |
-| **调试控制台** | 实时查看 TX/RX 命令日志，支持 SAF 保存路径选择 + 手动 TX 输入 |
-| **运行时权限** | Android 12+ / 12 以下自适应权限请求 |
+| **🎮 Demo Mode** | Built-in simulated data engine — full experience without an OBD adapter |
+| **Bluetooth Device Scanning** | Simultaneously scan Classic Bluetooth (SPP) and BLE OBD adapters |
+| **Auto/Manual Protocol Selection** | Supports all 13 ELM327 protocols: CAN, K-line (ISO 9141-2 / KWP2000), J1850 PWM/VPW, J1939, etc. |
+| **K-Line Support** | Motorcycle ECU adaptation — automatic 5-baud / fast init |
+| **Encrypted Handshake (AT+SETCRYPT)** | Automatically identifies and extracts the challenge from AT+VERSION and computes the key |
+| **Voltage Detection** | Read voltage via ATRV, popup warning on low voltage |
+| **Adapter Firmware Info** | ATI version string displayed on the Connected card |
+| **ECU Address Configuration** | Supports broadcast address (0x7DF) and specific ECU addresses |
+| **PID Bitmap Discovery** | Mode 01/02/09 triple bitmaps queried segment by segment, with block visualization + tap-to-jump |
+| **Live Dashboard** | Canvas gauges (gradient arcs + pointer shadows), up to 6 gauges, auto-polling |
+| **Live Data Explorer** | Browse all Mode 01 PIDs segment by segment with real-time values |
+| **Freeze Frame Data** | Mode 02 bitmap discovery + per-PID pull, with multi-frame prev/next navigation |
+| **DTC Read / Clear** | Mode 03/07/0A three-tab view, Mode 04 clear with confirmation dialog |
+| **DTC Details** | Built-in SAE J2012 DTC database (loaded from bundled dtc_codes.db) |
+| **DTC Offline Lookup** | DTC reference page — paginated browsing, search, configurable page size, page number jump |
+| **PID Detail Dialog** | Tap any PID card to view full metadata (description, unit, range, formula), shared across all three Explorer pages |
+| **Vehicle Information** | Mode 09 bitmap discovery + pull VIN, Calibration ID, CVN, ECU Name per-item |
+| **Debug Console** | Real-time TX/RX command log, SAF save path selection + manual TX input |
+| **Runtime Permissions** | Adaptive permission requests for Android 12+ and below |
 
 ---
 
-## 🛠️ 技术栈
+## 🛠️ Tech Stack
 
-| 组件 | 技术 | 版本 |
+| Component | Technology | Version |
 | :--- | :--- | :--- |
-| **语言** | Kotlin | 2.3.0 |
+| **Language** | Kotlin | 2.3.0 |
 | **UI** | Jetpack Compose + Material 3 | BOM 2024.10.00 |
-| **架构** | MVVM + Clean Architecture | — |
-| **异步** | Kotlin Coroutines + Flow | 1.8.1 |
-| **数据库** | Room | 2.7.0 |
-| **依赖注入** | Koin | 3.5.6 |
-| **OBD 协议** | kotlin-obd-api (eltonvs) | 1.4.1 |
+| **Architecture** | MVVM + Clean Architecture | — |
+| **Async** | Kotlin Coroutines + Flow | 1.8.1 |
+| **Database** | Room | 2.7.0 |
+| **DI** | Koin | 3.5.6 |
+| **OBD Protocol** | kotlin-obd-api (eltonvs) | 1.4.1 |
 | **KSP** | KSP2 | 2.3.4 |
-| **最低 SDK** | API 24（Android 7.0） | — |
-| **目标 SDK** | API 34（Android 14） | — |
+| **Min SDK** | API 24 (Android 7.0) | — |
+| **Target SDK** | API 34 (Android 14) | — |
 
 ---
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 app/src/main/java/com/freeobd/app/
 ├── data/
-│   ├── local/                   # Room 数据库
+│   ├── local/                   # Room database
 │   │   ├── entity/              # DtcEntity, PidMetadataEntity, VehicleProfileEntity
 │   │   ├── dao/                 # DtcDao, PidMetadataDao, VehicleProfileDao
-│   │   ├── AppDatabase.kt      # 数据库单例
-│   │   ├── DtcSeeder.kt         # 故障码预置数据库 (dtc_codes.db) 填充
-│   │   └── PidMetadataSeeder.kt    # PID 元数据 JSON (pid_definitions.json, 186 条) 填充
-│   ├── remote/                  # OBD 通信层
-│   │   ├── ObdTransport.kt     # 传输层抽象接口（SPP/BLE）
-│   │   ├── SppTransport.kt     # 经典蓝牙 RFCOMM 实现
-│   │   ├── BleTransport.kt     # BLE GATT 实现（骨架）
-│   │   ├── ObdCommandQueue.kt  # 原始 ELM327 命令队列 + Mutex 串行化
+│   │   ├── AppDatabase.kt      # Database singleton
+│   │   ├── DtcSeeder.kt         # Seeds bundled DTC database (dtc_codes.db)
+│   │   └── PidMetadataSeeder.kt    # Seeds PID metadata JSON (pid_definitions.json, 186 entries)
+│   ├── remote/                  # OBD communication layer
+│   │   ├── ObdTransport.kt     # Transport layer abstraction interface (SPP/BLE)
+│   │   ├── SppTransport.kt     # Classic Bluetooth RFCOMM implementation
+│   │   ├── BleTransport.kt     # BLE GATT implementation (skeleton)
+│   │   ├── ObdCommandQueue.kt  # Raw ELM327 command queue + Mutex serialization
 │   │   ├── ELM327Initializer.kt    # ATZ→ATE0→ATL0→AT+VERSION→(SETCRYPT)→ATSP→ATH0/ATH1→ATSH
-│   │   ├── YMOBDCrypto.kt          # 加密密钥生成算法（crypt: 挑战值 → SETCRYPT 密钥）
-│   │   ├── PIDBitmapParser.kt      # 位图解析 parsePidBitmap()（Mode 01/02/09 三个 Explorer 共用）
-│   │   ├── DTCParser.kt           # DTC 故障码解析（SAE J2012）
-│   │   ├── MultiFrameHandler.kt   # ISO 15765-2 多帧拼接（VIN 等）
-│   │   └── DebugLogger.kt         # 调试日志记录器（内存缓冲区）
-│   ├── mock/                    # Demo 模式
-│   │   ├── MockBluetoothRepository.kt  # 模拟蓝牙扫描 + 连接
-│   │   ├── MockOBDRepository.kt       # 模拟 OBD 数据引擎（含调试日志）
-│   │   └── DemoModeState.kt           # 全局真实/模拟仓库切换
-│   └── repository/              # Repository 实现
+│   │   ├── YMOBDCrypto.kt          # Encryption key generation algorithm (crypt: challenge → SETCRYPT key)
+│   │   ├── PIDBitmapParser.kt      # Bitmap parser parsePidBitmap() (shared across Mode 01/02/09 Explorers)
+│   │   ├── DTCParser.kt           # DTC parser (SAE J2012)
+│   │   ├── MultiFrameHandler.kt   # ISO 15765-2 multi-frame reassembly (VIN etc.)
+│   │   └── DebugLogger.kt         # Debug log recorder (in-memory buffer)
+│   ├── mock/                    # Demo mode
+│   │   ├── MockBluetoothRepository.kt  # Simulated Bluetooth scan + connection
+│   │   ├── MockOBDRepository.kt       # Simulated OBD data engine (with debug logging)
+│   │   └── DemoModeState.kt           # Global real/mock repository switch
+│   └── repository/              # Repository implementations
 │       ├── BluetoothRepositoryImpl.kt
 │       └── OBDRepositoryImpl.kt
 ├── domain/
-│   ├── model/                   # OBDData, DTC, VehicleInfo, ProtocolInfo, Discovery 等
-│   ├── repository/              # BluetoothRepository, OBDRepository 接口
+│   ├── model/                   # OBDData, DTC, VehicleInfo, ProtocolInfo, Discovery, etc.
+│   ├── repository/              # BluetoothRepository, OBDRepository interfaces
 │   └── usecase/                 # ConnectBluetooth, ReadLiveData, ReadDTC
 ├── presentation/
-│   ├── bluetooth/               # 蓝牙连接页面 + Demo 开关 + Protocol/Advanced 配置
-│   ├── dashboard/               # 仪表盘页面（最多 6 个） + GaugeWidget + PID 选择器
-│   ├── livedata/                # Live Data Explorer — Mode 01 位图 + PID 浏览
-│   ├── freezeframe/             # Freeze Frame — Mode 02 位图 + 多帧导航
-│   ├── dtc/                     # 故障码页面 + 详情对话框（Stored/Pending/Permanent）
-│   ├── dtc_lookup/              # DTC 离线查询页面 — 分页浏览、搜索、页数/页码控制
-│   ├── vehicle/                 # 车辆信息 — Mode 09 位图 + InfoType 卡片
-│   ├── debug/                   # 调试控制台页面（命令日志 + 手动 TX）
-│   ├── components/              # 共享组件（SupportBlockGrid, DetailCard, PidDetailDialog, SupportLegend）
-│   ├── theme/                   # 深色主题配色（汽车仪表盘风格）
+│   ├── bluetooth/               # Bluetooth connection page + Demo toggle + Protocol/Advanced config
+│   ├── dashboard/               # Dashboard page (up to 6 gauges) + GaugeWidget + PID picker
+│   ├── livedata/                # Live Data Explorer — Mode 01 bitmap + PID browsing
+│   ├── freezeframe/             # Freeze Frame — Mode 02 bitmap + multi-frame navigation
+│   ├── dtc/                     # DTC page + detail dialog (Stored/Pending/Permanent)
+│   ├── dtc_lookup/              # DTC offline lookup page — paginated browsing, search, page size/page control
+│   ├── vehicle/                 # Vehicle Information — Mode 09 bitmap + InfoType cards
+│   ├── debug/                   # Debug Console page (command log + manual TX)
+│   ├── components/              # Shared components (SupportBlockGrid, DetailCard, PidDetailDialog, SupportLegend)
+│   ├── theme/                   # Dark theme color scheme (automotive dashboard style)
 │   └── navigation/              # NavRoutes + AppNavHost
 ├── di/
-│   └── AppModule.kt            # Koin DI 模块
+│   └── AppModule.kt            # Koin DI module
 └── utils/
-    ├── ByteUtils.kt             # 字节/十六进制工具
-    ├── CoroutineUtils.kt        # 协程扩展（超时、重试、节流）
-    └── Extensions.kt            # 通用 Kotlin 扩展
+    ├── ByteUtils.kt             # Byte/hex utilities
+    ├── CoroutineUtils.kt        # Coroutine extensions (timeout, retry, throttle)
+    └── Extensions.kt            # General Kotlin extensions
 ```
 
 ---
 
-## 📡 命令发送方法
+## 📡 Command Sending Methods
 
-`ObdCommandQueue` 提供三个命令入口，职责不同，避免混用：
+`ObdCommandQueue` provides three command entry points, each with a distinct role — do not mix them up:
 
-| 方法 | 用途 | 7F 检测 | 日志行为 | 调用者 |
+| Method | Purpose | 7F Detection | Log Behavior | Callers |
 | :--- | :--- | :--- | :--- | :--- |
-| `sendRaw` | AT 命令（`ATZ`、`ATRV`、`ATSP` 等）<br>ELM327 初始化序列 | ❌ 不检测 | `DebugLogger.enabled` 时记录 | `ELM327Initializer`、<br>`getProtocolInfo`、<br>`readVoltage`、`readAdapterInfo` |
-| `sendObdCommand` | OBD 模式命令（`010C`、`03`、`0902` 等）<br>所有 01-0A 模式请求 | ✅ 检测 `7F xx yy`<br>命中返回 failure | 同上 | `discoverLiveDataPIDs`、`discoverFreezeFramePIDs`、<br>`discoverVehicleInfoTypes`、`readPID`、<br>`readDTCsFromMode`、`clearDTCs`、<br>`readFreezeFramePID`、`readLiveDataPID` 等 |
-| `sendRawCommand`<br>（Repository 层） | Debug Console 手动 TX 输入<br>自动区分 AT / OBD 路由 | ✅ OBD 命令走<br>`sendObdCommand` | **始终记录**<br>不受 `DebugLogger.enabled` 影响 | `DebugConsoleScreen`<br>手动输入框 |
+| `sendRaw` | AT commands (`ATZ`, `ATRV`, `ATSP`, etc.)<br>ELM327 initialization sequence | ❌ Not detected | Logged when `DebugLogger.enabled` | `ELM327Initializer`,<br>`getProtocolInfo`,<br>`readVoltage`, `readAdapterInfo` |
+| `sendObdCommand` | OBD mode commands (`010C`, `03`, `0902`, etc.)<br>All 01-0A mode requests | ✅ Detects `7F xx yy`<br>Returns failure on match | Same as above | `discoverLiveDataPIDs`, `discoverFreezeFramePIDs`,<br>`discoverVehicleInfoTypes`, `readPID`,<br>`readDTCsFromMode`, `clearDTCs`,<br>`readFreezeFramePID`, `readLiveDataPID`, etc. |
+| `sendRawCommand`<br>(Repository layer) | Debug Console manual TX input<br>Auto-routes AT vs OBD | ✅ OBD commands routed through<br>`sendObdCommand` | **Always logged**<br>Not affected by `DebugLogger.enabled` | `DebugConsoleScreen`<br>manual input field |
 
-> **原则**：发送 01-0A 模式的 OBD 请求必须用 `sendObdCommand`，否则 7F 负响应会被当作"无数据"静默忽略。
+> **Principle**: OBD requests for modes 01-0A must use `sendObdCommand`, otherwise 7F negative responses will be silently ignored as "no data".
 
-### 7F 负响应码
+### 7F Negative Response Codes
 
-ECU 拒绝 OBD 请求时返回 `7F [service] [code]`，常见错误码：
+When the ECU rejects an OBD request, it returns `7F [service] [code]`. Common error codes:
 
-| Code | 含义 |
+| Code | Meaning |
 | :--- | :--- |
 | `11` | serviceNotSupported |
 | `12` | subFunctionNotSupported |
@@ -140,293 +144,315 @@ ECU 拒绝 OBD 请求时返回 `7F [service] [code]`，常见错误码：
 
 ---
 
-## 📐 OBD 响应数据格式与解析
+## 📐 OBD Response Data Format and Parsing
 
 
-### extraSkip 机制
+### extraSkip Mechanism
 
-`extractFromDecoded` 标准跳过 2 字节（mode 响应 + 1 个子字节），`extraSkip` 用于声明额外跳过的字节：
+`extractFromDecoded` skips 2 bytes by default (mode response + 1 sub-byte). `extraSkip` declares additional bytes to skip:
 
-| 场景 | extraSkip | 跳过内容 | 备注 |
+| Scenario | extraSkip | Content Skipped | Notes |
 | :--- | :--- | :--- | :--- |
-| **Mode 01 / Mode 09 CAN** | `0` | mode + PID / InfoType | 无额外字节 |
-| **Mode 02 非 CAN** | `1` | mode + PID + **帧号回显** | 帧号作为数据字节回显，需跳过 |
-| **Mode 09 非 CAN（计数类）** | `0` | mode + InfoType | `0901`, `0903`, `0905`, `0909` — 无消息计数 |
-| **Mode 09 非 CAN（数据类）** | `1` | mode + InfoType + **消息计数** | `0900`, `0902`, `0904`, `0906`, `0908`, `090A`, `090B` |
-| **Mode 09 多帧多记录** | `1` | mode + InfoType + **记录索引** | `0904`, `0906`, `090A` 的每条帧 |
+| **Mode 01 / Mode 09 CAN** | `0` | mode + PID / InfoType | No extra bytes |
+| **Mode 02 non-CAN** | `1` | mode + PID + **frame number echo** | Frame number echoed as data byte, must skip |
+| **Mode 09 non-CAN (count types)** | `0` | mode + InfoType | `0901`, `0903`, `0905`, `0909` — no message count |
+| **Mode 09 non-CAN (data types)** | `1` | mode + InfoType + **message count** | `0900`, `0902`, `0904`, `0906`, `0908`, `090A`, `090B` |
+| **Mode 09 multi-frame multi-record** | `1` | mode + InfoType + **record index** | Each frame of `0904`, `0906`, `090A` |
 
-> `extraSkip = 0` 为默认值，所有调用处必须显式声明额外跳过的字节数，不在提取层做隐式协议推断。
+> `extraSkip = 0` is the default. All call sites must explicitly declare the number of extra bytes to skip — no implicit protocol inference at the extraction layer.
 
 ---
 
-### Mode 02：CAN vs 非 CAN 帧号回显
+### Mode 02: CAN vs Non-CAN Frame Number Echo
 
-Mode 02 响应格式为 `42 PID FRAME [data]`，其中 `FRAME` 是冻结帧编号（0x00–0xFF）。
+Mode 02 responses have the format `42 PID FRAME [data]`, where `FRAME` is the freeze frame number (0x00–0xFF).
 
-| 协议 | 帧号位置 | extraSkip | 原因 |
+| Protocol | Frame Number Location | extraSkip | Reason |
 | :--- | :--- | :--- | :--- |
-| **CAN**（协议 6–A） | CAN 多帧协议层处理 | **0** | 帧号由 ISO 15765-2 流控帧携带，不在 OBD 数据区重复 |
-| **非 CAN**（协议 1–5） | OBD 数据区首字节 | **1** | K 线 / J1850 无多帧协议层，帧号作为独立数据字节回显 |
+| **CAN** (Protocols 6–A) | Handled by CAN multi-frame protocol layer | **0** | Frame number carried by ISO 15765-2 flow control frames, not duplicated in OBD data area |
+| **Non-CAN** (Protocols 1–5) | First byte of OBD data area | **1** | K-line / J1850 have no multi-frame protocol layer; frame number echoed as independent data byte |
 
-示例 — 查询 Mode 02 PID 02 帧 00（命令 `020200`）：
+Example — query Mode 02 PID 02 frame 00 (command `020200`):
 
 ```
-CAN     响应: 42 02 00 01 70 3B
-              ↑↑ ↑↑      ↑↑↑↑
-              md PID      data + padding
-              (帧号 00 由 CAN 层处理，不在 OBD 数据中)
+CAN     response: 42 02 00 01 70 3B
+                  ↑↑ ↑↑      ↑↑↑↑
+                  md PID      data + padding
+                  (frame 00 handled by CAN layer, not in OBD data)
 
-非 CAN  响应: 42 02 00 01 70 C3
-              ↑↑ ↑↑ ↑↑   ↑↑↑↑
-              md PID FRM  data + padding
-              (帧号 00 作为数据字节回显，extraSkip=1 跳过)
+Non-CAN response: 42 02 00 01 70 C3
+                  ↑↑ ↑↑ ↑↑   ↑↑↑↑
+                  md PID FRM  data + padding
+                  (frame 00 echoed as data byte, extraSkip=1 skips it)
 ```
 
 ---
 
-### Mode 09：多帧 vs 单帧
+### Mode 09: Multi-Frame vs Single-Frame
 
-#### 多帧响应
+#### Multi-Frame Responses
 
-ECU 用多条 CAN 帧返回多个记录，每帧带自己的记录索引：
-
-```
-0904 多帧示例（4 个校准 ID）：
-
-87 F1 10 49 04 01 33 32 39 32 A6    → 记录 ① "3292"
-87 F1 10 49 04 02 30 2D 31 30 95    → 记录 ② "0-10"
-87 F1 10 49 04 03 4B 30 2A 30 AD    → 记录 ③ "K0*0"
-87 F1 10 49 04 04 30 30 30 30 99    → 记录 ④ "0000"
-
-每帧结构: CAN ID(3) | PCI(1) | 49(mode) | 04(InfoType) | IDX(record) | DATA... | PAD(CAN填充)
-                                                 ↑ extraSkip=1 跳过     ↑ payload
-```
-
-处理方式：`extractPerFramePayloads` 逐帧提取 payload → `formatSingleRecord` 格式化 → `joinToString("\n")` 拼接显示。
-
-##### CAN + ATH1 多帧重组
-
-当启用 ATH1（CAN 响应头显示）时，ELM327 将 ISO 15765-2 多帧响应逐帧输出为独立 ASCII 行：
+The ECU returns multiple records via multiple CAN frames, each with its own record index:
 
 ```
-0904 多帧 ATH1 响应（1 条记录）：
+0904 multi-frame example (4 calibration IDs):
+
+87 F1 10 49 04 01 33 32 39 32 A6    → record ① "3292"
+87 F1 10 49 04 02 30 2D 31 30 95    → record ② "0-10"
+87 F1 10 49 04 03 4B 30 2A 30 AD    → record ③ "K0*0"
+87 F1 10 49 04 04 30 30 30 30 99    → record ④ "0000"
+
+Per-frame structure: CAN ID(3) | PCI(1) | 49(mode) | 04(InfoType) | IDX(record) | DATA... | PAD(CAN padding)
+                                                         ↑ extraSkip=1 skips     ↑ payload
+```
+
+Processing: `extractPerFramePayloads` extracts payloads per frame → `formatSingleRecord` formats → `joinToString("\n")` joins for display.
+
+##### CAN + ATH1 Multi-Frame Reassembly
+
+When ATH1 (CAN response header display) is enabled, ELM327 outputs ISO 15765-2 multi-frame responses as independent ASCII lines per frame:
+
+```
+0904 multi-frame ATH1 response (1 record):
 7E8 10 13 49 04 01 33 33 33 39    ← FF (PCI=10, len=0x13)
 7E8 21 32 30 2D 36 32 4C 36       ← CF (PCI=21, seq=1)
 7E8 22 2A 30 30 30 30 31 00       ← CF (PCI=22, seq=2)
 ```
 
-CF 行不含 OBD 响应头 `49 04`，原有的 `extractPerFrameRaw` 会将其整行丢弃。`MultiFrameHandler.reassembleMultiFrame` 在 ASCII 层面完成重组：
+CF lines do not contain the OBD response header `49 04`, so the original `extractPerFrameRaw` would discard them entirely. `MultiFrameHandler.reassembleMultiFrame` performs reassembly at the ASCII level:
 
-1. 逐行扫描 PCI token（高 4 位 = `1` 为 FF，= `2` 为 CF），不依赖固定偏移
-2. 剥离 CAN ID + PCI 头，取数据 hex token
-3. CF 行换为 OBD 响应头 + 帧序号（`49 04 01`, `49 04 02`, ...）
-4. FF 行保留原有 OBD 头
+1. Scan each line for PCI token (high nibble = `1` → FF, = `2` → CF) — no fixed offset dependency
+2. Strip CAN ID + PCI header, extract data hex tokens
+3. Replace CF lines with OBD response header + frame sequence number (`49 04 01`, `49 04 02`, ...)
+4. Preserve the original OBD header on FF lines
 
 ```
-重组后（`\r` 分隔）：
-49 04 01 33 33 33 39          ← FF 行，原有 OBD 头保留
-49 04 02 32 30 2D 36 32 4C 36  ← CF 行，换上 49 04 02 头
-49 04 03 2A 30 30 30 30 31 00  ← CF 行，换上 49 04 03 头
+After reassembly (`\r`-separated):
+49 04 01 33 33 33 39          ← FF line, original OBD header preserved
+49 04 02 32 30 2D 36 32 4C 36  ← CF line, replaced with 49 04 02 header
+49 04 03 2A 30 30 30 30 31 00  ← CF line, replaced with 49 04 03 header
 ```
 
-重组后每行都是标准的 OBD 响应行，`extractPerFrameRaw(headerBytes=3)` 可正常提取各帧 payload。
+After reassembly, every line is a standard OBD response line, so `extractPerFrameRaw(headerBytes=3)` can extract each frame's payload normally.
 
-**触发条件**：CAN 协议（ATDPN = 6–A）+ ATH1（`showResponseHeaders = true`，默认开启）。
+**Trigger condition**: CAN protocol (ATDPN = 6–A) + ATH1 (`showResponseHeaders = true`, enabled by default).
 
-**影响的 InfoType**：`0902`（VIN）、`0904`（Calibration ID）、`0906`（CVN）、`0908`（IUPR）、`090A`（ECU Name）。
+**Affected InfoTypes**: `0902` (VIN), `0904` (Calibration ID), `0906` (CVN), `0908` (IUPR), `090A` (ECU Name).
 
-##### ISO 15765-2 PCI 帧格式
+##### ISO 15765-2 PCI Frame Format
 
-| PCI byte 高 4 位 | 类型 | 说明 |
+| PCI Byte High Nibble | Type | Description |
 | :--- | :--- | :--- |
-| `0x1` | First Frame (FF) | 低 4 位 + 下一字节 = 总数据长度（12 位） |
-| `0x2` | Consecutive Frame (CF) | 低 4 位 = 序列号（0–15，轮转） |
-| `0x3` | Flow Control (FC) | 接收方发送，控制传输速率 |
+| `0x1` | First Frame (FF) | Low nibble + next byte = total data length (12 bits) |
+| `0x2` | Consecutive Frame (CF) | Low nibble = sequence number (0–15, rolling) |
+| `0x3` | Flow Control (FC) | Sent by receiver to control transmission rate |
 
-#### 单帧响应（SAE J1979 标准格式）
+#### Single-Frame Responses (SAE J1979 Standard Format)
 
 ```
-49 04 [count] [record1_16字节补齐] [record2_16字节补齐] ...
+49 04 [count] [record1_16_byte_padded] [record2_16_byte_padded] ...
 ```
 
 ---
 
-### 响应尾部填充/校验字节
+### Response Trailing Padding / Checksum Bytes
 
-部分 ECU 或协议在有效数据后追加额外字节，导致数据比预期长：
+Some ECUs or protocols append extra bytes after the valid data, causing responses longer than expected:
 
-| 命令 | 原始响应 | 尾部额外字节 | 处理方式 |
+| Command | Raw Response | Trailing Extra Bytes | Handling |
 | :--- | :--- | :--- | :--- |
-| **0101** | `41 01 01 00 00 00` | `00 00 00`（CAN 8 字节补齐） | metadata.bytesCount=4 → 裁剪到 4 字节 |
-| **0103** | `41 03 01 00 CA` | `CA`（校验和） | metadata.bytesCount=2 → 裁剪到 2 字节 |
-| **0903** | `49 03 04 D4` | `D4`（校验和） | 首字节取值 → `4` |
-| **0905** | `49 05 01 D3` | `D3`（校验和） | 首字节取值 → `1` |
-| **020200** | `42 02 00 01 70 3B` | `3B`（校验和） | metadata.bytesCount=2 → 裁剪到 2 字节 |
-| **Bitmap 类** | `41 00 BE 1F A8 13 xx` | `xx`（尾部填充） | bitmap 固定取前 4 字节 |
+| **0101** | `41 01 01 00 00 00` | `00 00 00` (CAN 8-byte padding) | metadata.bytesCount=4 → trim to 4 bytes |
+| **0103** | `41 03 01 00 CA` | `CA` (checksum) | metadata.bytesCount=2 → trim to 2 bytes |
+| **0903** | `49 03 04 D4` | `D4` (checksum) | Take first byte value → `4` |
+| **0905** | `49 05 01 D3` | `D3` (checksum) | Take first byte value → `1` |
+| **020200** | `42 02 00 01 70 3B` | `3B` (checksum) | metadata.bytesCount=2 → trim to 2 bytes |
+| **Bitmap types** | `41 00 BE 1F A8 13 xx` | `xx` (trailing padding) | Bitmap always takes first 4 bytes |
 
-**统一处理策略**：
+**Unified handling strategy**:
 
-- **PID 数值类**（Mode 01/02）：`parsePIDResponse` 用 `metadata.bytesCount` 裁剪
-- **Bitmap 类**（0100/0120/0200/0900）：3 个 discovery 方法统一 `copyOf(4)`
-- **Mode 09 计数值类**（0903/0905）：`formatInfoTypeResult` 只读 `data[0]`
-- **Mode 09 多记录类**（0904/0906/090A）：多帧场景逐帧 payload 直接格式化，不拼接裁剪
+- **PID value types** (Mode 01/02): `parsePIDResponse` trims using `metadata.bytesCount`
+- **Bitmap types** (0100/0120/0200/0900): 3 discovery methods uniformly use `copyOf(4)`
+- **Mode 09 count types** (0903/0905): `formatInfoTypeResult` reads only `data[0]`
+- **Mode 09 multi-record types** (0904/0906/090A): In multi-frame scenarios, per-frame payloads are formatted directly, no concatenation-then-trim
 
 ---
 
-## 🚀 构建与运行
+## 🚀 Build & Run
 
-### 环境要求
+### Requirements
 
-- Android Studio Hedgehog (2023.1.1) 或更新版本
+- Android Studio Hedgehog (2023.1.1) or newer
 - JDK 17
 - Android SDK 34
 - Gradle 8.9+
 
-### 镜像加速
+### Mirror Acceleration
 
-`gradle-wrapper.properties` 默认使用腾讯云镜像：
+`gradle-wrapper.properties` defaults to Tencent Cloud mirror:
 ```
 https://mirrors.cloud.tencent.com/gradle/gradle-8.9-bin.zip
 ```
 
-### 构建步骤
+### Build Steps
 
 ```bash
-# 1. 克隆项目
+# 1. Clone the project
 git clone <repo-url>
 cd Free_OBD
 
-# 2. 构建 Debug APK
+# 2. Build Debug APK
 ./gradlew assembleDebug
 
-# 3. 安装到设备
+# 3. Install to device
 ./gradlew installDebug
 ```
 
-或在 Android Studio 中直接打开项目，点击 Run 按钮。
+Or open the project directly in Android Studio and click the Run button.
 
 ---
 
-## 📱 使用说明
+## 📱 Usage Guide
 
-### 🎮 Demo 模式（推荐首次体验）
+### 🎮 Demo Mode (Recommended for first-time experience)
 
-1. 打开应用，点击顶部 **Demo** 开关
-2. 标题栏出现 **DEMO** 标签，表示已进入演示模式
-3. 点击 **Scan for Devices** — 出现 4 个模拟 OBD 适配器
-4. 选择一个点击 **Connect** — 即时"连接"成功
-5. 进入 **Dashboard** — 仪表盘自动开始显示模拟数据
-6. 进入 **Live Data Explorer** — 浏览 Mode 01 所有 PID
-7. 进入 **Freeze Frame Data** — 查看冻结帧位图和 P0170 数据
-8. 进入 **Diagnostic Trouble Codes** — 查看示例故障码
-9. 进入 **Vehicle Information** — 查看示例 VIN 和 ECU 信息
-10. 进入 **DTC Lookup** — 离线浏览和搜索故障码定义
-11. 开启 **Debug Logging** 后进入 **Debug Console** — 查看模拟 AT 命令交互
+1. Open the app, toggle the **Demo** switch at the top
+2. A **DEMO** badge appears in the title bar, indicating demo mode is active
+3. Tap **Scan for Devices** — 4 simulated OBD adapters appear
+4. Select one and tap **Connect** — instantly "connected"
+5. Go to **Dashboard** — gauges automatically start showing simulated data
+6. Go to **Live Data Explorer** — browse all Mode 01 PIDs
+7. Go to **Freeze Frame Data** — view freeze frame bitmap and P0170 data
+8. Go to **Diagnostic Trouble Codes** — view sample DTCs
+9. Go to **Vehicle Information** — view sample VIN and ECU info
+10. Go to **DTC Lookup** — browse and search DTC definitions offline
+11. Enable **Debug Logging**, then go to **Debug Console** — view simulated AT command interaction
 
-> Demo 模式无需蓝牙权限，无需任何硬件，所有数据均为本地模拟。
+> Demo mode requires no Bluetooth permissions or hardware — all data is locally simulated.
 
-### 1. 连接真实适配器
+### 1. Connecting a Real Adapter
 
-- 确保 **Demo** 开关关闭
-- 启动应用，点击 **Scan for Devices**
-- 首次使用需授予蓝牙权限
-- 确保 OBD 适配器已插入车辆 OBD-II 接口并通电
-- 在设备列表中选择你的适配器（通常名为 OBDII、ELM327、Vgate 等）
-- **协议选择**：默认 ATSP0（自动检测）。摩托车 K 线建议手动选 ATSP3（ISO 9141-2）、ATSP4（KWP 5Bd）或 ATSP5（KWP Fast）
-- 展开 **Advanced Options** 可设置 ECU 地址、开启响应头显示以及启用调试日志
-- 连接成功后，**Connected** 卡片显示电压、适配器固件版本、协商协议
+- Make sure the **Demo** toggle is off
+- Launch the app, tap **Scan for Devices**
+- Grant Bluetooth permissions on first use
+- Ensure the OBD adapter is plugged into the vehicle's OBD-II port and powered on
+- Select your adapter from the device list (commonly named OBDII, ELM327, Vgate, etc.)
+- **Protocol selection**: Default ATSP0 (auto-detect). For motorcycles with K-line, manually select ATSP3 (ISO 9141-2), ATSP4 (KWP 5Bd), or ATSP5 (KWP Fast)
+- Expand **Advanced Options** to set ECU address, enable response header display, and enable debug logging
+- After a successful connection, the **Connected** card shows voltage, adapter firmware version, and negotiated protocol
 
-### 2. 仪表盘（Dashboard）
+### 2. Dashboard
 
-- 连接成功后，点击 **Dashboard**
-- 仪表盘自动开始轮询，无需手动点击 Start
-- 点击右上角 **+** 按钮添加/移除仪表盘，最多 6 个
-- 底部栏 Start/Stop 控制轮询
+- After connecting, tap **Dashboard**
+- Gauges start polling automatically — no need to manually tap Start
+- Tap the **+** button in the top-right corner to add/remove gauges, up to 6
+- The bottom bar Start/Stop controls polling
 
 ### 3. Live Data Explorer
 
-- 点击 **Live Data Explorer** 浏览 Mode 01 全部 PID
-- 顶部 8 个段选择器（00–E0）切换位图范围
-- 绿色方块 = ECU 支持，点击跳转到对应 PID 卡片
-- 每个 PID 卡片显示实时数值
+- Tap **Live Data Explorer** to browse all Mode 01 PIDs
+- Top 8 segment selectors (00–E0) switch between bitmap ranges
+- Green block = ECU supported, tap to jump to the corresponding PID card
+- Each PID card shows its real-time value
 
-### 4. 冻结帧数据
+### 4. Freeze Frame Data
 
-- 点击 **Freeze Frame Data** 查看故障触发瞬间的快照数据
-- 右上角 ⏮ ⏭ 按钮前后切换多帧
-- 位图方块 + PID 详情卡片，与 Live Data Explorer 一致
+- Tap **Freeze Frame Data** to view snapshot data captured at the moment a fault triggered
+- ⏮ ⏭ buttons in the top-right corner navigate between multiple frames
+- Bitmap blocks + PID detail cards, consistent with Live Data Explorer
 
-### 5. 读取故障码
+### 5. Reading DTCs
 
-- 点击 **Diagnostic Trouble Codes**
-- 自动加载所有故障码，在 Stored / Pending / Permanent 标签页切换
-- 点击单个故障码查看详细信息（代码、描述、分类）
-- 点击垃圾桶图标清除存储的故障码（需确认）
+- Tap **Diagnostic Trouble Codes**
+- All DTCs are loaded automatically; switch between Stored / Pending / Permanent tabs
+- Tap a single DTC to view detailed information (code, description, category)
+- Tap the trash icon to clear stored DTCs (confirmation required)
 
-### 6. 车辆信息
+### 6. Vehicle Information
 
-- 点击 **Vehicle Information** 首先发送 `0900` 查询 InfoType 位图
-- 顶部显示原始响应十六进制串和支持状态方块（绿 = 支持，红 = 不支持）
-- 每个 InfoType（VIN、校准 ID、CVN、ECU 名称等）显示独立卡片：
-  - ✅ + 结果内容 —— ECU 支持且数据获取成功
-  - ✅ + 错误信息 —— ECU 支持但获取失败（如 7F 负响应）
-  - ❌ —— ECU 不支持该 InfoType
-- 右上角刷新按钮可重新拉取全部数据
+- Tap **Vehicle Information** — first sends `0900` to query the InfoType bitmap
+- The top area displays the raw response hex string and support status blocks (green = supported, red = not supported)
+- Each InfoType (VIN, Calibration ID, CVN, ECU Name, etc.) is displayed as an individual card:
+  - ✅ + result content — ECU supports it and data was retrieved successfully
+  - ✅ + error message — ECU supports it but retrieval failed (e.g., 7F negative response)
+  - ❌ — ECU does not support this InfoType
+- The refresh button in the top-right corner re-pulls all data
 
-### 7. PID 详情弹窗
+### 7. PID Detail Dialog
 
-- 各 Explorer 页面（Live Data / Freeze Frame / Vehicle Info）中的 PID/InfoType 卡片均支持点击
-- 弹出对话框显示来自 `pid_definitions.json` 的完整元数据：
-  - 描述、单位、数值范围、字节数
-  - **公式**（等宽字体展示，自动处理换行）
+- PID/InfoType cards in each Explorer page (Live Data / Freeze Frame / Vehicle Info) are tappable
+- Tapping opens a dialog showing full metadata from `pid_definitions.json`:
+  - Description, unit, value range, byte count
+  - **Formula** (displayed in monospace font, auto line-wrapped)
 
-### 8. DTC 查询
+### 8. DTC Lookup
 
-- 点击 **DTC Lookup** 进入故障码参考页面
-- 内置故障码定义，支持离线浏览
-- **搜索**：输入框输入代码或描述关键词，300ms 防抖自动查询
-- **分页**：默认每页 50 条，下拉菜单支持 10/20/50/100/200/500 条切换
-- **跳页**：输入页码快速跳转
-- **详情**：点击任意条目弹出代码、描述、分类（POWERTRAIN / BODY / CHASSIS / NETWORK）
+- Tap **DTC Lookup** to enter the DTC reference page
+- Built-in DTC definitions, supports offline browsing
+- **Search**: Enter a code or description keyword in the input field; 300ms debounced auto-query
+- **Pagination**: Default 50 per page; dropdown supports 10/20/50/100/200/500 per page
+- **Page Jump**: Enter a page number for quick navigation
+- **Details**: Tap any entry to view its code, description, and category (POWERTRAIN / BODY / CHASSIS / NETWORK)
 
-### 9. 调试控制台
+### 9. Debug Console
 
-- 在蓝牙扫描界面的 **Advanced** 选项中开启 **Enable Debug Logging**
-- 连接成功后，点击 **Debug Console** 进入调试页面
-- **TX**（蓝）= 发送的命令，**RX**（灰）= 适配器返回的响应，**ERR**（红）= 错误
-- 点击 **保存** 按钮通过系统文件选择器（SAF）选择保存路径
-- 底部 **输入框** 支持手动输入 AT/OBD 命令并实际发送给 ELM327（Demo 模式下返回不支持提示）
-- 每次重新 Connect 会清空上次会话的日志
-
----
-
-## 🔧 ELM327 初始化序列
-
-```
-1. ATZ              复位，清除前一个会话状态
-2. ATE0             关闭命令回显
-3. ATL0             关闭换行符
-4. AT+VERSION       扩展版本信息；自动提取 crypt: 挑战值
-4.5. AT+SETCRYPT    根据 crypt: 挑战值自动计算密钥并发送
-5. ATSPx            协议选择（ATSP0 = 自动检测）
-6. ATH0/ATH1        始终发送：ATH0 = 无 header（默认），ATH1 = 用户开启 "Show Response Headers"
-7. ATSH             ECU 头地址（可选，配置了才发）
-```
-
-- **ATRV / ATI**：不在初始化序列中发送。连接成功后由 ViewModel 单独查询用于 UI 显示（电压 + 固件版本），避免重复发送。
-- **K 线协议（ATSP3/4/5）**：ELM327 在首次 OBD 命令时自动执行 5‑baud 慢速或快速 init
-- **非关键步骤**：AT+SETCRYPT 失败不会阻断初始化流程（适配器可能不支持该命令）
-- **加密**：`crypt:` 挑战值每次连接都不同，密钥通过逆向算法实时计算（详见 [AT+SETCRYPT.md](AT+SETCRYPT.md)）
+- In the Bluetooth scan page, expand **Advanced** options and enable **Enable Debug Logging**
+- After connecting, tap **Debug Console** to enter the debug page
+- **TX** (blue) = sent commands, **RX** (gray) = adapter responses, **ERR** (red) = errors
+- Tap the **Save** button to choose a save path via the system file picker (SAF)
+- The bottom **input field** supports manually entering AT/OBD commands and actually sending them to the ELM327 (returns unsupported prompt in Demo mode)
+- Each re-connect clears the previous session's log
 
 ---
 
-## ⚠️ 注意事项
+## 🔧 ELM327 Initialization Sequence
 
-1. **权限**：Android 12+ 需要 BLUETOOTH_SCAN + BLUETOOTH_CONNECT，Android < 12 需要 BLUETOOTH + BLUETOOTH_ADMIN + ACCESS_FINE_LOCATION
-2. **适配器质量**：廉价 ELM327 克隆版可能存在响应延迟。内置 100ms 命令间延迟 + 10s 首命令超时
-3. **车辆兼容性**：不同车型支持的 PID 集差异较大，应用会自动发现并只显示可用的 PID
-4. **K 线 / 摩托车**：并非所有摩托车都支持标准 OBD-II PID。国四及更新车型一般支持，建议先试 ATSP3（ISO 9141-2）。如果不行，依次尝试 ATSP5（KWP Fast）和 ATSP4（KWP 5Bd）
-5. **CAN 协议车型**：2008 年以后的汽油车和 2004 年以后的柴油车普遍支持 CAN 协议（ATSP6/ATSP7）
-6. **Demo 模式限制**：模拟数据仅供体验，车速和 RPM 等参数为随机生成，不代表真实车辆状态
-7. **加密密钥**：个别廉价 ELM327 克隆版需要动态识别并计算密钥，无需手动配置。标准 ELM327 适配器自动跳过此步骤
-8. **负响应 (7F)**：ECU 拒绝 OBD 请求时返回 `7F [service] [code]`（如 `7F 09 11` 表示 Mode 09 不支持），Debug Console 会显示红色 ERR 日志。常见原因：车辆不支持该模式、请求条件不满足、安全访问拒绝
+```
+1. ATZ              Reset, clears previous session state
+2. ATE0             Disable command echo
+3. ATL0             Disable line feeds
+4. AT+VERSION       Extended version info; auto-extracts crypt: challenge
+4.5. AT+SETCRYPT    Auto-computes the key from the crypt: challenge and sends it
+5. ATSPx            Protocol selection (ATSP0 = auto-detect)
+6. ATH0/ATH1        Always sent: ATH0 = no headers, ATH1 = user enabled "Show Response Headers"
+7. ATSH             ECU header address (optional, only sent if configured)
+```
+
+- **ATRV / ATI**: Not sent during the initialization sequence. After a successful connection, the ViewModel queries them separately for UI display (voltage + firmware version), avoiding redundant sends.
+- **K-line protocols (ATSP3/4/5)**: ELM327 automatically performs 5-baud slow or fast init on the first OBD command
+- **Non-critical step**: AT+SETCRYPT failure does not block the initialization flow (the adapter may not support the command)
+- **Encryption**: The `crypt:` challenge value differs on every connection; the key is computed in real time using a reverse-engineered algorithm (see [AT+SETCRYPT.md](AT+SETCRYPT.md))
+
+---
+
+## ⚠️ Notes
+
+1. **Permissions**: Android 12+ requires BLUETOOTH_SCAN + BLUETOOTH_CONNECT; Android < 12 requires BLUETOOTH + BLUETOOTH_ADMIN + ACCESS_FINE_LOCATION
+2. **Adapter Quality**: Cheap ELM327 clones may have response delays. Built-in 100ms inter-command delay + 10s first-command timeout
+3. **Vehicle Compatibility**: The set of supported PIDs varies greatly between vehicle models. The app auto-discovers and only displays available PIDs
+4. **K-Line / Motorcycles**: Not all motorcycles support standard OBD-II PIDs. China IV and newer models generally do. Start with ATSP3 (ISO 9141-2); if that fails, try ATSP5 (KWP Fast) then ATSP4 (KWP 5Bd) in order
+5. **CAN Protocol Vehicles**: Gasoline vehicles from 2008 onward and diesel vehicles from 2004 onward generally support CAN protocols (ATSP6/ATSP7)
+6. **Demo Mode Limitations**: Simulated data is for experience only. Parameters like vehicle speed and RPM are randomly generated and do not represent real vehicle conditions
+7. **Encryption Key**: Some cheap ELM327 clones require dynamic challenge recognition and key computation — no manual configuration needed. Standard ELM327 adapters automatically skip this step
+8. **Negative Response (7F)**: When the ECU rejects an OBD request, it returns `7F [service] [code]` (e.g., `7F 09 11` means Mode 09 is not supported). The Debug Console displays a red ERR log. Common causes: vehicle does not support the mode, request conditions not met, security access denied
+
+---
+
+## 📄 License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
+
+```
+Copyright 2026 3badguys <chuiC456@163.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
