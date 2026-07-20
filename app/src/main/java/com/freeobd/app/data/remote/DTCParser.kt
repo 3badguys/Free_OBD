@@ -59,7 +59,7 @@ object DTCParser {
 
         var offset = 0
         var parsed = 0
-        while (offset + 1 < rawData.size && (maxCount == 0 || parsed < maxCount)) {
+        while (offset + 1 < rawData.size && parsed < maxCount) {
             val byte1 = rawData[offset].toInt() and 0xFF
             val byte2 = rawData[offset + 1].toInt() and 0xFF
 
